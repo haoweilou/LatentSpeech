@@ -13,7 +13,7 @@ def weights_init(m):
     if isinstance(m, nn.Conv2d):
         torch.nn.init.xavier_uniform_(m.weight)
         torch.nn.init.zero_(m.bias)
-        
+
 warnings.filterwarnings("ignore")
 class MultiScaleSTFT(nn.Module):
 
@@ -154,3 +154,32 @@ class AE(nn.Module):
         x_reconstruct = self.pqmf.inverse(x_reconstruct)
         return x_reconstruct,distance,l2_distance
     
+class VQEmbedding(nn.Module):
+    def __init__(self, num_embeddings, embedding_dim, commitment_cost=0.25):
+        super(VQEmbedding, self).__init__()
+        self.embedding_dim = embedding_dim
+        self.num_embeddings = num_embeddings
+        self.embedding = nn.Embedding(num_embeddings, embedding_dim)
+        self.embedding.weight.data.uniform_(-1 / num_embeddings, 1 / num_embeddings)
+        self.commitment_cost = commitment_cost
+
+    def forward(self, z):
+        # Flatten input
+        z_flattened = z.permute(0, 2, 1).contiguous().view(-1, self.embedding_dim)
+        distances = (torch.sum(z_flattened ** 2, dim=1, keepdim=True)  + torch.sum(self.embedding.weight ** 2, dim=1)
+                    - 2 * torch.matmul(z_flattened, self.embedding.weight.t()))
+        encoding_indices = torch.argmin(distances, dim=1).unsqueeze(1)
+        encodings = torch.zeros(encoding_indices.size(0), self.num_embeddings, device=z.device)
+        encodings.scatter_(1, encoding_indices, 1)
+        # Quantize and unflatten
+        quantized = torch.matmul(encodings, self.embedding.weight).view(z.size())
+
+         # Calculate loss
+        e_latent_loss = F.mse_loss(quantized.detach(), z)
+        q_latent_loss = F.mse_loss(quantized, z.detach())
+        loss = q_latent_loss + self.commitment_cost * e_latent_loss
+
+        # Add the gradient back to input
+        quantized = z + (quantized - z).detach()
+        
+        return quantized, loss, encoding_indices
