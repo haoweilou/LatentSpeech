@@ -183,3 +183,82 @@ class VQEmbedding(nn.Module):
         quantized = z + (quantized - z).detach()
         
         return quantized, loss, encoding_indices
+    
+
+class VQAE(nn.Module):
+    """Some Information about AE"""
+    def __init__(self,params):
+        super(VQAE, self).__init__()
+        hidden_dim = 16
+        self.params = params
+        self.spec_distance = AudioDistance(params,params.log_epsilon)
+        self.pqmf = PQMF(100,params.n_band)
+        self.encoder = nn.Sequential(
+            nn.Conv1d(params.n_band,params.n_band*4,7,padding=3),
+            nn.BatchNorm1d(params.n_band*4),
+            nn.LeakyReLU(.2),
+            nn.Conv1d(params.n_band*4,params.n_band*8,kernel_size=4*2+1,stride=4,padding=4),
+            nn.BatchNorm1d(params.n_band*8),
+            nn.LeakyReLU(.2),
+            nn.Conv1d(params.n_band*8,params.n_band*16,kernel_size=4*2+1,stride=4,padding=4),
+            nn.BatchNorm1d(params.n_band*16),
+            nn.LeakyReLU(.2),
+            nn.Conv1d(params.n_band*16,params.n_band*32,kernel_size=4*2+1,stride=4,padding=4),
+            nn.BatchNorm1d(params.n_band*32),
+            nn.LeakyReLU(.2),
+            nn.Conv1d(params.n_band*32,hidden_dim,1),
+            nn.BatchNorm1d(hidden_dim),
+            nn.LeakyReLU(.2),
+        )
+        self.encoder.apply(weights_init)
+
+        self.vq_layer = VQEmbedding(num_embeddings=512, embedding_dim=hidden_dim)
+
+        self.decoder = nn.Sequential(
+            nn.Conv1d(hidden_dim,params.n_band*32,1),
+            nn.BatchNorm1d(params.n_band*32),
+            nn.LeakyReLU(.2),
+            nn.ConvTranspose1d(params.n_band*32,params.n_band*16,kernel_size=4*2,stride=4,padding=4//2),
+            nn.BatchNorm1d(params.n_band*16),
+            nn.LeakyReLU(.2),
+            nn.ConvTranspose1d(params.n_band*16,params.n_band*8,kernel_size=4*2,stride=4,padding=4//2),
+            nn.BatchNorm1d(params.n_band*8),
+            nn.LeakyReLU(.2),
+            nn.ConvTranspose1d(params.n_band*8,params.n_band*4,kernel_size=4*2,stride=4,padding=4//2),
+            nn.BatchNorm1d(params.n_band*4),
+            nn.LeakyReLU(.2),
+        )
+        self.decoder.apply(weights_init)
+        self.wave_gen = nn.Conv1d(params.n_band*4,params.n_band,7,padding=3)
+        self.loud_gen = nn.Conv1d(params.n_band*4,params.n_band,3,1,padding=1)
+        
+    def mod_sigmoid(self,x):
+        return 2 * torch.sigmoid(x)**2.3 + 1e-7
+    
+    def decode(self,x):
+        z_ = self.decoder(x)
+        loud = self.loud_gen(z_)
+        wave = self.wave_gen(z_)
+        x = torch.tanh(wave) *  self.mod_sigmoid(loud)
+        return x
+    
+    def encode(self,x):
+        mb_audio = self.pqmf(x)
+        z = self.encoder(mb_audio)
+        z_q, vq_loss, _ = self.vq_layer(z)
+        return z_q, vq_loss, mb_audio
+    
+    def forward(self, x):
+        z_q, vq_loss, mb_audio = self.encode(x)
+        x_reconstruct = self.decode(z_q)
+
+        b,c,t = mb_audio.shape
+        x_reconstruct = x_reconstruct[:,:,:t]
+
+        input_audio = torch.reshape(mb_audio,(b*c,1,t))
+        output_audio = torch.reshape(x_reconstruct,(b*c,1,-1))
+        spectral_loss = self.spec_distance(input_audio,output_audio)
+
+        x_reconstruct = self.pqmf.inverse(x_reconstruct)
+        
+        return x_reconstruct,spectral_loss,vq_loss
