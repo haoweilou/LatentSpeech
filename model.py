@@ -1,0 +1,156 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+import torchaudio
+from typing import Callable, Optional, Sequence, Union
+import warnings
+from pqmf import PQMF
+from math import sqrt
+
+
+def weights_init(m):
+    if isinstance(m, nn.Conv2d):
+        torch.nn.init.xavier_uniform_(m.weight)
+        torch.nn.init.zero_(m.bias)
+        
+warnings.filterwarnings("ignore")
+class MultiScaleSTFT(nn.Module):
+
+    def __init__(self,
+                 scales: Sequence[int],
+                 sample_rate: int,
+                 magnitude: bool = True,
+                 normalized: bool = False,
+                 num_mels: Optional[int] = None) -> None:
+        super().__init__()
+        self.scales = scales
+        self.magnitude = magnitude
+        self.num_mels = num_mels
+
+        self.stfts = []
+        for scale in scales:
+            self.stfts.append(
+                torchaudio.transforms.MelSpectrogram(
+                    sample_rate=sample_rate,
+                    n_fft=scale,
+                    win_length=scale,
+                    hop_length=scale // 4,
+                    normalized=normalized,
+                    n_mels=num_mels,
+                    power=1,
+                ))
+
+        self.stfts = nn.ModuleList(self.stfts)
+
+    def forward(self, x: torch.Tensor) -> Sequence[torch.Tensor]:
+        b,c,t = x.shape
+        x = torch.reshape(x,(b*c,t))
+        stfts = []
+        for stft in self.stfts:
+            y = stft(x)
+            stfts.append(y.abs())
+
+        return stfts
+ 
+
+class AudioDistance(nn.Module):
+
+    def __init__(self, params,
+                 log_epsilon: float) -> None:
+        super().__init__()
+        self.multiscale_stft = MultiScaleSTFT(params.stft_scales,params.sample_rate,num_mels=params.n_mels)
+        self.log_epsilon = log_epsilon
+
+    def forward(self, x: torch.Tensor, y: torch.Tensor):
+        stfts_x = self.multiscale_stft(x)
+        stfts_y = self.multiscale_stft(y)
+        distance = 0.
+
+        for x, y in zip(stfts_x, stfts_y):
+            logx = torch.log(x + self.log_epsilon)
+            logy = torch.log(y + self.log_epsilon)
+
+            lin_distance = F.mse_loss(x,y)
+            log_distance = F.l1_loss(logx, logy)
+
+            distance = distance + lin_distance + log_distance
+
+        return distance
+
+class AE(nn.Module):
+    """Some Information about AE"""
+    def __init__(self,params):
+        super(AE, self).__init__()
+        hidden_dim = 16
+        self.params = params
+        self.spec_distance = AudioDistance(params,params.log_epsilon)
+        self.pqmf = PQMF(100,params.n_band)
+        self.encoder = nn.Sequential(
+            nn.Conv1d(params.n_band,params.n_band*4,7,padding=3),
+            nn.BatchNorm1d(params.n_band*4),
+            nn.LeakyReLU(.2),
+            nn.Conv1d(params.n_band*4,params.n_band*8,kernel_size=4*2+1,stride=4,padding=4),
+            nn.BatchNorm1d(params.n_band*8),
+            nn.LeakyReLU(.2),
+            nn.Conv1d(params.n_band*8,params.n_band*16,kernel_size=4*2+1,stride=4,padding=4),
+            nn.BatchNorm1d(params.n_band*16),
+            nn.LeakyReLU(.2),
+            nn.Conv1d(params.n_band*16,params.n_band*32,kernel_size=4*2+1,stride=4,padding=4),
+            nn.BatchNorm1d(params.n_band*32),
+            nn.LeakyReLU(.2),
+            nn.Conv1d(params.n_band*32,hidden_dim,1),
+            nn.BatchNorm1d(hidden_dim),
+            nn.LeakyReLU(.2),
+        )
+
+        self.encoder.apply(weights_init)
+
+        self.decoder = nn.Sequential(
+            nn.Conv1d(hidden_dim,params.n_band*32,1),
+            nn.BatchNorm1d(params.n_band*32),
+            nn.LeakyReLU(.2),
+            nn.ConvTranspose1d(params.n_band*32,params.n_band*16,kernel_size=4*2,stride=4,padding=4//2),
+            nn.BatchNorm1d(params.n_band*16),
+            nn.LeakyReLU(.2),
+            nn.ConvTranspose1d(params.n_band*16,params.n_band*8,kernel_size=4*2,stride=4,padding=4//2),
+            nn.BatchNorm1d(params.n_band*8),
+            nn.LeakyReLU(.2),
+            nn.ConvTranspose1d(params.n_band*8,params.n_band*4,kernel_size=4*2,stride=4,padding=4//2),
+            nn.BatchNorm1d(params.n_band*4),
+            nn.LeakyReLU(.2),
+        )
+        self.decoder.apply(weights_init)
+        self.wave_gen = nn.Conv1d(params.n_band*4,params.n_band,7,padding=3)
+        self.loud_gen = nn.Conv1d(params.n_band*4,params.n_band,3,1,padding=1)
+        
+    def mod_sigmoid(self,x):
+        return 2 * torch.sigmoid(x)**2.3 + 1e-7
+    
+    def decode(self,x):
+        z_ = self.decoder(x)
+        loud = self.loud_gen(z_)
+        wave = self.wave_gen(z_)
+        x = torch.tanh(wave) *  self.mod_sigmoid(loud)
+        return x
+    
+    def encode(self,x):
+        mb_auido = self.pqmf(x)
+        z = self.encoder(mb_auido)
+        return z,mb_auido
+    
+    def forward(self, x):
+        z,mb_auido = self.encode(x)
+        x_reconstruct = self.decode(z)
+
+        b,c,t = mb_auido.shape
+        x_reconstruct = x_reconstruct[:,:,:t]
+
+        input_audio = torch.reshape(mb_auido,(b*c,1,t))
+        output_audio = torch.reshape(x_reconstruct,(b*c,1,-1))
+        distance = self.spec_distance(input_audio,output_audio)
+        l2_distance = F.mse_loss(input_audio,output_audio)
+
+        x_reconstruct = self.pqmf.inverse(x_reconstruct)
+        return x_reconstruct,distance,l2_distance
+    
