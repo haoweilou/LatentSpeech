@@ -19,7 +19,6 @@ commitment_cost=0.25
 
 # model = AE(params).to(device)
 model = VQAE(params).to(device)
-
 optimizer = optim.Adam(model.parameters(),lr=params.learning_rate)
 loss_log = pd.DataFrame({"total_loss":[],"spectral_loss":[],"vq_loss":[]})
 dataset = BakerAudio(0,1000)
@@ -46,7 +45,7 @@ for epoch in range(0,epochs):
     
 
     if epoch % 50 == 0:
-        saveModel(model,f"{model_name}_{epoch}","/home/haoweilou/scratch/model/vqae")
+        saveModel(model,f"{model_name}_{epoch}","./model/")
 
     loss_log.loc[len(loss_log.index)] = [loss_val/len(loader),spectral_loss_/len(loader),vq_loss_/len(loader)]
     loss_log.to_csv(f"./log/loss_{model_name}")

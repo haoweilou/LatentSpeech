@@ -36,6 +36,12 @@ def preprocess(sample_rate,audio,filename):
     return spectrogram
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+def pad16(audio):
+    pad_length = (16 - audio.shape[-1] % 16) % 16
+    if pad_length > 0:
+        # Pad the audio signal with zeros
+        return F.pad(audio, (0, pad_length), mode='constant', value=0)
+    return audio
 
 from torch.nn.utils.rnn import pad_sequence
 class BakerAudio(torch.utils.data.Dataset):
