@@ -164,17 +164,25 @@ class VQEmbedding(nn.Module):
         self.commitment_cost = commitment_cost
 
     def forward(self, z):
-        # Flatten input
+        #Z = [batch, FeatDim, T]
+        #Flat = batch*T, FeatDim
         z_flattened = z.permute(0, 2, 1).contiguous().view(-1, self.embedding_dim)
+        #distance = [Z-codebook]*2 = Z^2 - 2*Z*codebook + codebook^2
+        #[batch*T,num_embed]
         distances = (torch.sum(z_flattened ** 2, dim=1, keepdim=True)  + torch.sum(self.embedding.weight ** 2, dim=1)
                     - 2 * torch.matmul(z_flattened, self.embedding.weight.t()))
+
+        #batch*T,1
         encoding_indices = torch.argmin(distances, dim=1).unsqueeze(1)
+        
+        #batch*T,num_embed, filled with one and one , one is for selected embed
         encodings = torch.zeros(encoding_indices.size(0), self.num_embeddings, device=z.device)
         encodings.scatter_(1, encoding_indices, 1)
         # Quantize and unflatten
+        #[batch*T,num_embed] * [num_embed,feat_dim] => [batch,T,feat_dim]
         quantized = torch.matmul(encodings, self.embedding.weight).view(z.size())
 
-         # Calculate loss
+        # Calculate loss
         e_latent_loss = F.mse_loss(quantized.detach(), z)
         q_latent_loss = F.mse_loss(quantized, z.detach())
         loss = q_latent_loss + self.commitment_cost * e_latent_loss
@@ -196,19 +204,19 @@ class VQAE(nn.Module):
         self.encoder = nn.Sequential(
             nn.Conv1d(params.n_band,params.n_band*4,7,padding=3),
             nn.BatchNorm1d(params.n_band*4),
-            nn.LeakyReLU(.2),
+            nn.Tanh(),
             nn.Conv1d(params.n_band*4,params.n_band*8,kernel_size=4*2+1,stride=4,padding=4),
             nn.BatchNorm1d(params.n_band*8),
-            nn.LeakyReLU(.2),
+            nn.Tanh(),
             nn.Conv1d(params.n_band*8,params.n_band*16,kernel_size=4*2+1,stride=4,padding=4),
             nn.BatchNorm1d(params.n_band*16),
-            nn.LeakyReLU(.2),
+            nn.Tanh(),
             nn.Conv1d(params.n_band*16,params.n_band*32,kernel_size=4*2+1,stride=4,padding=4),
             nn.BatchNorm1d(params.n_band*32),
-            nn.LeakyReLU(.2),
+            nn.Tanh(),
             nn.Conv1d(params.n_band*32,hidden_dim,1),
             nn.BatchNorm1d(hidden_dim),
-            nn.LeakyReLU(.2),
+            nn.Tanh(),
         )
         self.encoder.apply(weights_init)
 
@@ -217,16 +225,16 @@ class VQAE(nn.Module):
         self.decoder = nn.Sequential(
             nn.Conv1d(hidden_dim,params.n_band*32,1),
             nn.BatchNorm1d(params.n_band*32),
-            nn.LeakyReLU(.2),
+            nn.Tanh(),
             nn.ConvTranspose1d(params.n_band*32,params.n_band*16,kernel_size=4*2,stride=4,padding=4//2),
             nn.BatchNorm1d(params.n_band*16),
-            nn.LeakyReLU(.2),
+            nn.Tanh(),
             nn.ConvTranspose1d(params.n_band*16,params.n_band*8,kernel_size=4*2,stride=4,padding=4//2),
             nn.BatchNorm1d(params.n_band*8),
-            nn.LeakyReLU(.2),
+            nn.Tanh(),
             nn.ConvTranspose1d(params.n_band*8,params.n_band*4,kernel_size=4*2,stride=4,padding=4//2),
             nn.BatchNorm1d(params.n_band*4),
-            nn.LeakyReLU(.2),
+            nn.Tanh(),
         )
         self.decoder.apply(weights_init)
         self.wave_gen = nn.Conv1d(params.n_band*4,params.n_band,7,padding=3)

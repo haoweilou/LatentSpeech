@@ -6,7 +6,8 @@ from model import VQAE
 from params import params
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-vaae = VQAE(params).to(device)
+vqae = VQAE(params).to(device)
 
-audio = torch.rand((1,48000)).to(device)
-print(audio.shape)
+audio = torch.rand((64,1,48000)).to(device)
+generate_audio,spec_loss,vq_loss = vqae(audio)
+print(spec_loss,vq_loss)
