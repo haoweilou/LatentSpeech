@@ -43,7 +43,6 @@ for epoch in range(0,epochs):
     
     print(f"Epoch: {epoch} Spectral Loss: {spectral_loss_/len(loader):.03f} VQ Loss: {vq_loss_/len(loader):.03f} Total: {loss_val/len(loader):.03f}")
     
-
     if epoch % 50 == 0:
         saveModel(model,f"{model_name}_{epoch}","./model/")
 

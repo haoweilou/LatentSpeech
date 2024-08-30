@@ -50,7 +50,7 @@ class BakerAudio(torch.utils.data.Dataset):
         super(BakerAudio, self).__init__()
         audio_path = path
         audio_files = [f"{audio_path}Wave/{i:06d}.wav" for i in range(1,10001)][start:end]
-        audios = [load_audio(f)[0][0] for f in tqdm(audio_files)]
+        audios = [pad16(load_audio(f)[0][0]) for f in tqdm(audio_files)]
         self.audios = audios
         self.max_word_len = 512
         
