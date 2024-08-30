@@ -89,19 +89,19 @@ class AE(nn.Module):
         self.encoder = nn.Sequential(
             nn.Conv1d(params.n_band,params.n_band*4,7,padding=3),
             nn.BatchNorm1d(params.n_band*4),
-            nn.LeakyReLU(.2),
-            nn.Conv1d(params.n_band*4,params.n_band*8,kernel_size=4*2+1,stride=4,padding=4),
+            nn.Tanh(),
+            nn.Conv1d(params.n_band*4,params.n_band*8,kernel_size=5*2+1,stride=5,padding=5),
             nn.BatchNorm1d(params.n_band*8),
-            nn.LeakyReLU(.2),
+            nn.Tanh(),
             nn.Conv1d(params.n_band*8,params.n_band*16,kernel_size=4*2+1,stride=4,padding=4),
             nn.BatchNorm1d(params.n_band*16),
-            nn.LeakyReLU(.2),
-            nn.Conv1d(params.n_band*16,params.n_band*32,kernel_size=4*2+1,stride=4,padding=4),
+            nn.Tanh(),
+            nn.Conv1d(params.n_band*16,params.n_band*32,kernel_size=3*2+1,stride=3,padding=3),
             nn.BatchNorm1d(params.n_band*32),
-            nn.LeakyReLU(.2),
+            nn.Tanh(),
             nn.Conv1d(params.n_band*32,hidden_dim,1),
             nn.BatchNorm1d(hidden_dim),
-            nn.LeakyReLU(.2),
+            nn.Tanh(),
         )
 
         self.encoder.apply(weights_init)
@@ -109,16 +109,16 @@ class AE(nn.Module):
         self.decoder = nn.Sequential(
             nn.Conv1d(hidden_dim,params.n_band*32,1),
             nn.BatchNorm1d(params.n_band*32),
-            nn.LeakyReLU(.2),
-            nn.ConvTranspose1d(params.n_band*32,params.n_band*16,kernel_size=4*2,stride=4,padding=4//2),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*32,params.n_band*16,kernel_size=3*2,stride=3,padding=3//2),
             nn.BatchNorm1d(params.n_band*16),
-            nn.LeakyReLU(.2),
+            nn.Tanh(),
             nn.ConvTranspose1d(params.n_band*16,params.n_band*8,kernel_size=4*2,stride=4,padding=4//2),
             nn.BatchNorm1d(params.n_band*8),
-            nn.LeakyReLU(.2),
-            nn.ConvTranspose1d(params.n_band*8,params.n_band*4,kernel_size=4*2,stride=4,padding=4//2),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*8,params.n_band*4,kernel_size=5*2,stride=5,padding=5//2),
             nn.BatchNorm1d(params.n_band*4),
-            nn.LeakyReLU(.2),
+            nn.Tanh(),
         )
         self.decoder.apply(weights_init)
         self.wave_gen = nn.Conv1d(params.n_band*4,params.n_band,7,padding=3)
@@ -149,10 +149,9 @@ class AE(nn.Module):
         input_audio = torch.reshape(mb_auido,(b*c,1,t))
         output_audio = torch.reshape(x_reconstruct,(b*c,1,-1))
         distance = self.spec_distance(input_audio,output_audio)
-        l2_distance = F.mse_loss(input_audio,output_audio)
 
         x_reconstruct = self.pqmf.inverse(x_reconstruct)
-        return x_reconstruct,distance,l2_distance
+        return x_reconstruct,distance
     
 class VQEmbedding(nn.Module):
     def __init__(self, num_embeddings, embedding_dim, commitment_cost=0.25):

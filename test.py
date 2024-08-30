@@ -8,7 +8,7 @@ from function import loadModel,save_audio,draw_wave
 from dataset import BakerAudio,pad16
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 model = VQAE(params).to(device)
-num = 50
+num = 100
 model = loadModel(model,f"vqae_{num}","./model/")
 dataset = BakerAudio(0,100,"L:/baker/")
 audio = dataset.audios[0]
