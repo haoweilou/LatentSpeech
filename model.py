@@ -219,7 +219,7 @@ class VQAE(nn.Module):
         )
         self.encoder.apply(weights_init)
 
-        self.vq_layer = VQEmbedding(num_embeddings=1024, embedding_dim=hidden_dim)
+        self.vq_layer = VQEmbedding(num_embeddings=256, embedding_dim=hidden_dim)
 
         self.decoder = nn.Sequential(
             nn.Conv1d(hidden_dim,params.n_band*32,1),
