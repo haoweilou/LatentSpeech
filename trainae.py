@@ -21,10 +21,10 @@ commitment_cost=0.25
 model = AE(params).to(device)
 optimizer = optim.Adam(model.parameters(),lr=params.learning_rate)
 loss_log = pd.DataFrame({"total_loss":[],"spectral_loss":[]})
-dataset = BakerAudio(0,1000)
+dataset = BakerAudio(0,10000)
 loader = DataLoader(dataset,batch_size=params.batch_size,collate_fn=dataset.collate,drop_last=True,shuffle=True)
 epochs = 501
-model_name = "ae"
+model_name = "ae9k"
 for epoch in range(0,epochs):
     loss_val = 0
     spectral_loss_ = 0
@@ -41,7 +41,7 @@ for epoch in range(0,epochs):
     
     print(f"Epoch: {epoch} Spectral Loss: {spectral_loss_/len(loader):.03f} Total: {loss_val/len(loader):.03f}")
     
-    if epoch % 50 == 0:
+    if epoch % 10 == 0:
         saveModel(model,f"{model_name}_{epoch}","./model/")
 
     loss_log.loc[len(loss_log.index)] = [loss_val/len(loader),spectral_loss_/len(loader)]
