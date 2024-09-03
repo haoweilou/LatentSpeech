@@ -19,8 +19,12 @@ commitment_cost=0.25
 
 # model = AE(params).to(device)
 model = AE(params).to(device)
+model = loadModel(model,"ae9k_20","./model/")
 optimizer = optim.Adam(model.parameters(),lr=params.learning_rate)
-loss_log = pd.DataFrame({"total_loss":[],"spectral_loss":[]})
+# loss_log = pd.DataFrame({"total_loss":[],"spectral_loss":[]})
+loss_log = pd.read_csv("./log/loss_ae9k")
+loss_log = loss_log[["total_loss","spectral_loss"]]
+print(loss_log)
 dataset = BakerAudio(0,10000)
 loader = DataLoader(dataset,batch_size=params.batch_size,collate_fn=dataset.collate,drop_last=True,shuffle=True)
 epochs = 501

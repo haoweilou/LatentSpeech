@@ -4,19 +4,23 @@ import torch.nn.functional as F
 import torch.optim as optim
 from model import AEOld
 from params import params
-from function import loadModel,save_audio,draw_wave,draw_heatmap
+from function import loadModel,save_audio,draw_wave,draw_heatmap,load_audio
 from dataset import BakerAudio,pad16
+import torchaudio
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-num = 100
+num = 500
 model_name = "aeold"
 
 model = AEOld(params).to(device)
 model = loadModel(model,f"{model_name}_{num}","./model/")
 # model =  loadModel(model,f"ae9k16","L:/model/") 
-dataset = BakerAudio(0,100,"L:/baker/")
-
-audio = dataset.audios[0]
-audio = pad16(audio).to(device)
+# dataset = BakerAudio(0,100,"L:/baker/")
+audio,sr = load_audio("./sample/english.wav")
+# Resample the audio
+resampler = torchaudio.transforms.Resample(orig_freq=sr, new_freq=48000)
+audio = resampler(audio)
+# audio = dataset.audios[0]
+audio = pad16(audio[0]).to(device)
 audio = audio.unsqueeze(0).unsqueeze(0)
 
 generate_audio,spec_loss = model(audio)

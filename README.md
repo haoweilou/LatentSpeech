@@ -4,16 +4,8 @@ scp dataset.py function.py model.py params.py pqmf.py trainvqae.py tts_config.py
 
 
 scp haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/LatentSpeech/model/vqae_100.pth ./model/
-scp haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/LatentSpeech/model/ae_200.pth ./model/
+scp haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/LatentSpeech/model/ae_400.pth ./model/
 
-scp haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/scratch/model/TTS_hidden/Alinger/tts_600.pth ./save/model
-scp haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/scratch/model/TTS_hidden/Alinger/tts_wo_da_600.pth ./save/model
-scp haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/scratch/model/TTS_hidden/Alinger/tts_Melspec_600.pth ./save/model
-scp haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/scratch/model/TTS_hidden/Alinger/tts_MFCC_600.pth ./save/model
+scp haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/scratch/model/ae/ae_350.pth ./model/aeold_350.pth
 
-scp -r L:\baker\MFCC_Aligner haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/scratch/baker
-
-/home/haoweilou/scratch/model/TTS_hidden/Alinger 
-
-iter_run.py to pretrain the aligner
-log.txt is the log for aligner
+scp dataset.py trainae_2set haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/

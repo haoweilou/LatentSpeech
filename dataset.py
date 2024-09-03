@@ -56,8 +56,35 @@ class BakerAudio(torch.utils.data.Dataset):
         
     def collate(self, minibatch):
         output = pad_sequence(minibatch,batch_first=True) #Batch,T
+        if output.shape[-1] >= 48000*10:
+            output = output[:,:48000*10]
         return output.unsqueeze(1) 
         
+
+    def __getitem__(self, index):
+        return self.audios[index]
+
+    def __len__(self):
+        return len(self.audios)
+    
+class LJSpeechAudio(torch.utils.data.Dataset):
+    """This dataset only contain the audio file of baker dataset, it is meant to be used when train AE"""
+    def __init__(self,start=0,end=10000,path="/home/haoweilou/scratch/LJSpeech/"):
+        super(LJSpeechAudio, self).__init__()
+        audio_path = path
+        audio_files = os.listdir(f"{audio_path}wavs/")
+        audio_files = [f"{audio_path}wavs/{a}" for a in audio_files][start:end]
+        audios = [load_audio(f)[0][0] for f in tqdm(audio_files)]
+        resampler = torchaudio.transforms.Resample(orig_freq=22050, new_freq=48000)
+        audios = [pad16(resampler(a)) for a in audios]
+        self.audios = audios
+        self.max_word_len = 512
+        
+    def collate(self, minibatch):
+        output = pad_sequence(minibatch,batch_first=True) #Batch,T
+        if output.shape[-1] >= 48000*10:
+            output = output[:,:48000*10]
+        return output.unsqueeze(1)
 
     def __getitem__(self, index):
         return self.audios[index]
