@@ -34,22 +34,24 @@ labels_np = np.array(labels)
 # tsne = TSNE(n_components=2,n_jobs=4, random_state=42)
 # results = tsne.fit_transform(combined_data_np)
 from sklearn.cluster import KMeans,MiniBatchKMeans
-num_clusters = 2048
+num_clusters = 4096
 mini_batch_kmeans = MiniBatchKMeans(n_clusters=num_clusters, batch_size=10000, random_state=42)
 mini_batch_kmeans.fit(combined_data_np)
 
 # kmeans = KMeans(n_clusters=num_clusters, random_state=42, n_init=10, max_iter=300)
 # kmeans.fit(combined_data_np)
 codebook = mini_batch_kmeans.cluster_centers_
+codebook_torch = torch.tensor(codebook)
+torch.save(codebook_torch,"codebook")
 print(codebook.shape)
 
-pca = PCA(n_components=2)
-results = pca.fit_transform(combined_data_np)
-pca_codebook_results = pca.transform(codebook)  # Transform the codebook using the same PCA
+# pca = PCA(n_components=2)
+# results = pca.fit_transform(combined_data_np)
+# pca_codebook_results = pca.transform(codebook)  # Transform the codebook using the same PCA
 
-plt.scatter(results[:, 0], results[:, 1], s=2, alpha=0.5, label='Chinese', c='grey')
+# plt.scatter(results[:, 0], results[:, 1], s=2, alpha=0.5, label='Chinese', c='grey')
 
-plt.scatter(pca_codebook_results[:, 0], pca_codebook_results[:, 1], s=2, alpha=0.5, label='center', c='red')
+# plt.scatter(pca_codebook_results[:, 0], pca_codebook_results[:, 1], s=2, alpha=0.5, label='center', c='red')
 # Separate t-SNE results by label
 # tsne_chinese = results[labels_np == 0]
 # tsne_english = results[labels_np == 1]
@@ -63,8 +65,8 @@ plt.scatter(pca_codebook_results[:, 0], pca_codebook_results[:, 1], s=2, alpha=0
 
 
 # # Plot t-SNE results
-plt.figure(figsize=(10, 8))
-plt.title('t-SNE Visualization of Latent Space')
-plt.xlabel('t-SNE Component 1')
-plt.ylabel('t-SNE Component 2')
-plt.show()
+# plt.figure(figsize=(10, 8))
+# plt.title('t-SNE Visualization of Latent Space')
+# plt.xlabel('t-SNE Component 1')
+# plt.ylabel('t-SNE Component 2')
+# plt.show()
