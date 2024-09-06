@@ -25,11 +25,21 @@ model.encoder = ae.encoder
 model.decoder = ae.decoder
 model.vq_layer.embedding.weight = torch.nn.Parameter(codebook)
 
-optimizer = optim.Adam(model.parameters(),lr=params.learning_rate)
+
+for param in model.encoder.parameters():
+    param.requires_grad = True
+for param in model.decoder.parameters():
+    param.requires_grad = True
+for param in model.vq_layer.parameters():
+    param.requires_grad = True
+
+# optimizer = optim.Adam(model.parameters(),lr=params.learning_rate)
+optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=params.learning_rate)
+
 loss_log = pd.DataFrame({"total_loss":[],"spectral_loss":[],"vq_loss":[]})
 dataset = BakerAudio(0,1000)
 loader = DataLoader(dataset,batch_size=params.batch_size,collate_fn=dataset.collate,drop_last=True,shuffle=True)
-epochs = 501
+epochs = 2001
 model_name = "vqaeinit"
 for epoch in range(0,epochs):
     loss_val = 0
@@ -49,7 +59,7 @@ for epoch in range(0,epochs):
     
     print(f"Epoch: {epoch} Spectral Loss: {spectral_loss_/len(loader):.03f} VQ Loss: {vq_loss_/len(loader):.03f} Total: {loss_val/len(loader):.03f}")
     
-    if epoch % 50 == 0:
+    if epoch % 100 == 0:
         saveModel(model,f"{model_name}_{epoch}","./model/")
 
     loss_log.loc[len(loss_log.index)] = [loss_val/len(loader),spectral_loss_/len(loader),vq_loss_/len(loader)]
