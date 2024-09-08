@@ -7,7 +7,7 @@ from params import params
 from function import loadModel,save_audio,draw_wave,draw_heatmap
 from dataset import BakerAudio,pad16,LJSpeechAudio
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-num = 1000
+num = 2000
 # model_name = "ae9k2set"
 model_name = "vqaeinit"
 if model_name.startswith("vq"):

@@ -27,11 +27,11 @@ model.vq_layer.embedding.weight = torch.nn.Parameter(codebook)
 
 
 for param in model.encoder.parameters():
-    param.requires_grad = True
+    param.requires_grad = False
 for param in model.decoder.parameters():
     param.requires_grad = True
 for param in model.vq_layer.parameters():
-    param.requires_grad = False
+    param.requires_grad = True
 
 # optimizer = optim.Adam(model.parameters(),lr=params.learning_rate)
 optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=params.learning_rate)

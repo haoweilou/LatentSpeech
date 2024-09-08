@@ -11,7 +11,11 @@ scp dataset.py trainae_2set haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/
 scp haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/LatentSpeech/model/vqaeinit_1000.pth ./model/
 
 # copy log
-scp haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/LatentSpeech/log/loss_vqae ./log
+scp haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/LatentSpeech/log/loss_vqaeinit ./log
 
 # copy a file 
-scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/
+scp trainvqae_init.py haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/
+scp trainvqae_init.py codebook model.py haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/
+
+# Generate a codebook 
+python visualize.py

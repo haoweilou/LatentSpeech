@@ -34,7 +34,7 @@ labels_np = np.array(labels)
 # tsne = TSNE(n_components=2,n_jobs=4, random_state=42)
 # results = tsne.fit_transform(combined_data_np)
 from sklearn.cluster import KMeans,MiniBatchKMeans
-num_clusters = 4096
+num_clusters = 512
 mini_batch_kmeans = MiniBatchKMeans(n_clusters=num_clusters, batch_size=10000, random_state=42)
 mini_batch_kmeans.fit(combined_data_np)
 
