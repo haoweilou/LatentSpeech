@@ -12,7 +12,7 @@ from math import sqrt
 def weights_init(m):
     if isinstance(m, nn.Conv2d):
         torch.nn.init.xavier_uniform_(m.weight)
-        torch.nn.init.zero_(m.bias)
+        torch.nn.init.zeros_(m.bias)
 
 warnings.filterwarnings("ignore")
 class MultiScaleSTFT(nn.Module):
@@ -347,20 +347,89 @@ class AEOld(nn.Module):
         return x_reconstruct,distance
     
 
+class ResBlock(nn.Module):
+    def __init__(self, in_channel, channel):
+        super().__init__()
+        self.conv = nn.Sequential(
+            nn.ReLU(),
+            nn.Conv2d(in_channel, channel, 3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(channel, in_channel, 1),
+        )
+
+    def forward(self, input):
+        out = self.conv(input)
+        out += input
+        return out
+    
+class SpecEncoder(nn.Module):
+    def __init__(self, channel,in_channel=1, n_res_block=4, n_res_channel=32):
+        super().__init__()
+        sf = 2 #2^sf will be the reduction ratio
+        self.blocks = nn.ModuleList()
+        for i in range(n_res_block):
+            kernel_size = 2*(i+1)
+            block = [
+                nn.Conv2d(in_channel, channel // sf, kernel_size, stride=2, padding=i),
+                nn.ReLU(),
+                nn.Conv2d(channel // sf, channel, kernel_size, stride=2, padding=i),
+                nn.ReLU(),
+                nn.Conv2d(channel, channel, 3, padding=1),
+                ResBlock(channel, n_res_channel),
+                nn.ReLU()
+            ]
+            self.blocks.append(nn.Sequential(*block))
+
+    def forward(self, input):
+        output = self.blocks[0](input) + self.blocks[1](input) + self.blocks[2](input) + self.blocks[3](input) 
+        return output
+
+
+class SpecDecoder(nn.Module):
+    def __init__(self, in_channel,out_channel,channel, n_res_channel=32):
+        super().__init__()
+        
+        self.decoder = nn.Sequential(
+            nn.Conv2d(in_channel, channel, 3, padding=1),
+            ResBlock(channel, n_res_channel),
+            ResBlock(channel, n_res_channel),
+            ResBlock(channel, n_res_channel),
+            ResBlock(channel, n_res_channel),
+            nn.ReLU(),
+            nn.ConvTranspose2d(channel, channel // 2, 4, stride=2, padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(channel // 2, out_channel, 4, stride=2, padding=1)
+        )
+
+    def forward(self, z_q):
+        return self.decoder(z_q)
+
 class VQSpecAE(nn.Module):
     """Some Information about AE"""
-    def __init__(self,params):
+    def __init__(self,embed_dim=64):
         super(VQSpecAE, self).__init__()
-        hidden_dim = 16
-        self.encoder = nn.Sequential()
+        self.encoder = SpecEncoder(channel=128)
         self.encoder.apply(weights_init)
+        self.mapper = nn.Conv2d(128,embed_dim,1)
+        self.vq_layer = VQEmbedding(num_embeddings=512, embedding_dim=embed_dim,commitment_cost=0.1)
 
-        self.vq_layer = VQEmbedding(num_embeddings=512, embedding_dim=hidden_dim,commitment_cost=0.1)
-
-        self.decoder = nn.Sequential()
+        self.decoder = SpecDecoder(in_channel=embed_dim,out_channel=1,channel=128)
         self.decoder.apply(weights_init)
-        
+
+    def encode(self,x):
+        z = self.encoder(x) #Batch,128,Height/4,Width/4
+        z = self.mapper(z) #Batch,embed_dim,Height/4,Width/4
+        b,embed,h,w = z.shape
+        z = torch.reshape(z,(b,embed,-1))
+        z_q, vq_loss, _ = self.vq_layer(z)#Batch size, embed_dim, 20*100
+        z_q = torch.reshape(z,(b,embed,h,w))
+        return z_q, vq_loss
+
+    def decode(self,x):
+        return self.decoder(x)
+
     def forward(self, x):
-        #Spectrogram: Batch,Height,Width,1
-        z = self.encoder(x)
-        return self.decoder(z)
+        #Spectrogram: Batch,1,Height,Width
+        z_q, vq_loss = self.encode(x) #Batch,embed_dim,Height/4,Width/4
+        y = self.decode(z_q)
+        return y, vq_loss

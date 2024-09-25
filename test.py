@@ -1,10 +1,33 @@
-from dataset import BakerAudio, LJSpeechAudio
-from function import save_audio
-baker_dataset = BakerAudio(0,100,"L:/baker/")
-lj_dataset = LJSpeechAudio(0,10000,"L:/LJSpeech/")
+import torch
+import torch.nn as nn
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+from vqae import VQVAE,Encoder
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+spectrogram = torch.randn((12,1,80,400)).to(device)
+# encoder = Encoder(in_channel=1,channel=128).to(device)
+# z = encoder(spectrogram)
+# reducer = nn.Conv2d(128, 64, 1).to(device)
+# print(z.shape)#Batch size, channel, 20, 100
+# z = reducer(z)
+# print(z.shape)#Batch size, embed_dim, 20, 100
+# b,embed,h,w = z.shape
+# z = z.view(z.size(0),z.size(1),-1)
+# print(z.shape)#Batch size, embed_dim, 20*100
 
-baker_audio = baker_dataset.audios[0].unsqueeze(0).unsqueeze(0)
-save_audio(baker_audio[0].detach().cpu(),48000,"real_baker")
+# from model import VQEmbedding
+# vq_layer = VQEmbedding(512,64).to(device)
 
-lj_audio = lj_dataset.audios[0].unsqueeze(0).unsqueeze(0)
-save_audio(lj_audio[0].detach().cpu(),48000,"real_lj")
+# z_q, vq_loss, _ = vq_layer(z)
+# print(z_q.shape,vq_loss)
+# z_q = torch.reshape(z,(b,embed,h,w))
+# print(z_q.shape,vq_loss)
+
+# from vqae import Decoder
+# decoder = Decoder(64,1,128,2,32,4).to(device)
+# y = decoder(z_q)
+from model import VQSpecAE
+model = VQSpecAE().to(device)
+y,vq_loss = model(spectrogram)
+print(spectrogram.shape,y.shape)
+print(vq_loss)
+
