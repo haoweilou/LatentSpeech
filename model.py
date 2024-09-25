@@ -345,3 +345,22 @@ class AEOld(nn.Module):
 
         x_reconstruct = self.pqmf.inverse(x_reconstruct)
         return x_reconstruct,distance
+    
+
+class VQSpecAE(nn.Module):
+    """Some Information about AE"""
+    def __init__(self,params):
+        super(VQSpecAE, self).__init__()
+        hidden_dim = 16
+        self.encoder = nn.Sequential()
+        self.encoder.apply(weights_init)
+
+        self.vq_layer = VQEmbedding(num_embeddings=512, embedding_dim=hidden_dim,commitment_cost=0.1)
+
+        self.decoder = nn.Sequential()
+        self.decoder.apply(weights_init)
+        
+    def forward(self, x):
+        #Spectrogram: Batch,Height,Width,1
+        z = self.encoder(x)
+        return self.decoder(z)
