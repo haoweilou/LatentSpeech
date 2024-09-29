@@ -252,6 +252,7 @@ class VQAE(nn.Module):
     def encode(self,x):
         mb_audio = self.pqmf(x)
         z = self.encoder(mb_audio)
+        print(z.shape)
         z_q, vq_loss, _ = self.vq_layer(z)
         return z_q, vq_loss, mb_audio
     
@@ -431,5 +432,202 @@ class VQSpecAE(nn.Module):
     def forward(self, x):
         #Spectrogram: Batch,1,Height,Width
         z_q, vq_loss = self.encode(x) #Batch,embed_dim,Height/4,Width/4
+        print(z_q.shape)
         y = self.decode(z_q)
         return y, vq_loss
+    
+
+class VQAEExtend(nn.Module):
+    """Some Information about AE"""
+    def __init__(self,params):
+        super().__init__()
+        hidden_dim = 16
+        self.params = params
+        self.spec_distance = AudioDistance(params,params.log_epsilon)
+        self.pqmf = PQMF(100,params.n_band)
+        self.encoder = nn.Sequential(
+            nn.Conv1d(params.n_band,params.n_band*4,7,padding=3),
+            nn.BatchNorm1d(params.n_band*4),
+            nn.Tanh(),
+            nn.Conv1d(params.n_band*4,params.n_band*8,kernel_size=5*2+1,stride=5,padding=5),
+            nn.BatchNorm1d(params.n_band*8),
+            nn.Tanh(),
+            nn.Conv1d(params.n_band*8,params.n_band*16,kernel_size=4*2+1,stride=4,padding=4),
+            nn.BatchNorm1d(params.n_band*16),
+            nn.Tanh(),
+            nn.Conv1d(params.n_band*16,params.n_band*32,kernel_size=3*2+1,stride=3,padding=3),
+            nn.BatchNorm1d(params.n_band*32),
+            nn.Tanh(),
+            nn.Conv1d(params.n_band*32,hidden_dim*4,1),
+            nn.BatchNorm1d(hidden_dim*4),
+            nn.Tanh(),
+        )
+        self.encoder.apply(weights_init)
+
+        self.vq_layer = VQEmbedding(num_embeddings=512, embedding_dim=hidden_dim,commitment_cost=0.1)
+
+        self.decoder = nn.Sequential(
+            nn.Conv1d(hidden_dim*4,params.n_band*32,1),
+            nn.BatchNorm1d(params.n_band*32),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*32,params.n_band*16,kernel_size=3*2,stride=3,padding=3//2),
+            nn.BatchNorm1d(params.n_band*16),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*16,params.n_band*8,kernel_size=4*2,stride=4,padding=4//2),
+            nn.BatchNorm1d(params.n_band*8),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*8,params.n_band*4,kernel_size=5*2,stride=5,padding=5//2),
+            nn.BatchNorm1d(params.n_band*4),
+            nn.Tanh(),
+        )
+        self.decoder.apply(weights_init)
+        self.wave_gen = nn.Conv1d(params.n_band*4,params.n_band,7,padding=3)
+        self.loud_gen = nn.Conv1d(params.n_band*4,params.n_band,3,1,padding=1)
+        
+    def mod_sigmoid(self,x):
+        return 2 * torch.sigmoid(x)**2.3 + 1e-7
+    
+    def decode(self,x):
+        z_ = self.decoder(x)
+        loud = self.loud_gen(z_)
+        wave = self.wave_gen(z_)
+        x = torch.tanh(wave) *  self.mod_sigmoid(loud)
+        return x
+    
+    def encode(self,x):
+        mb_audio = self.pqmf(x)
+        z = self.encoder(mb_audio)
+        # z = torch.chunk(z,chunks=4,dim=1,)
+        z_q, vq_loss, _ = self.vq_layer(z)
+        return z_q, vq_loss, mb_audio
+    
+    def forward(self, x):
+        z_q, vq_loss, mb_audio = self.encode(x)
+        x_reconstruct = self.decode(z_q)
+
+        b,c,t = mb_audio.shape
+        x_reconstruct = x_reconstruct[:,:,:t]
+
+        input_audio = torch.reshape(mb_audio,(b*c,1,t))
+        output_audio = torch.reshape(x_reconstruct,(b*c,1,-1))
+        spectral_loss = self.spec_distance(input_audio,output_audio)
+
+        x_reconstruct = self.pqmf.inverse(x_reconstruct)
+        
+        return x_reconstruct,spectral_loss,vq_loss
+    
+
+class VQAEFuse(nn.Module):
+    """Some Information about VQAEFuse"""
+    def __init__(self,params):
+        super().__init__()
+        hidden_dim = 16
+        self.params = params
+        self.spec_distance = AudioDistance(params,params.log_epsilon)
+        self.pqmf = PQMF(100,params.n_band)
+        self.audio_encoder = nn.Sequential(
+            nn.Conv1d(params.n_band,params.n_band*4,7,padding=3),
+            nn.BatchNorm1d(params.n_band*4),
+            nn.Tanh(),
+            nn.Conv1d(params.n_band*4,params.n_band*8,kernel_size=5*2+1,stride=5,padding=5),
+            nn.BatchNorm1d(params.n_band*8),
+            nn.Tanh(),
+            nn.Conv1d(params.n_band*8,params.n_band*16,kernel_size=4*2+1,stride=4,padding=4),
+            nn.BatchNorm1d(params.n_band*16),
+            nn.Tanh(),
+            nn.Conv1d(params.n_band*16,params.n_band*32,kernel_size=3*2+1,stride=3,padding=3),
+            nn.BatchNorm1d(params.n_band*32),
+            nn.Tanh(),
+            nn.Conv1d(params.n_band*32,hidden_dim,1),
+            nn.BatchNorm1d(hidden_dim),
+            nn.Tanh(),
+        )
+        
+        self.melspec_transform = torchaudio.transforms.MelSpectrogram(
+            sample_rate=48*1000, 
+            n_fft=400,
+            win_length=400,
+            hop_length=240,
+            n_mels=80  
+        )
+        self.spec_encoder = SpecEncoder(channel=128)
+        self.spec_encoder.apply(weights_init)
+        self.mapper = nn.Sequential(
+            nn.Conv2d(128,16,1),
+            nn.BatchNorm1d(16),
+            nn.Conv2d(16,16,kernel_size=(20, 1),stride=(1, 1),padding=(0, 0)),
+            nn.BatchNorm1d(16)
+        )
+
+
+        self.audio_encoder.apply(weights_init)
+
+        self.vq_layer = VQEmbedding(num_embeddings=512, embedding_dim=hidden_dim,commitment_cost=0.1)
+
+        self.decoder = nn.Sequential(
+            nn.Conv1d(hidden_dim,params.n_band*32,1),
+            nn.BatchNorm1d(params.n_band*32),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*32,params.n_band*16,kernel_size=3*2,stride=3,padding=3//2),
+            nn.BatchNorm1d(params.n_band*16),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*16,params.n_band*8,kernel_size=4*2,stride=4,padding=4//2),
+            nn.BatchNorm1d(params.n_band*8),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*8,params.n_band*4,kernel_size=5*2,stride=5,padding=5//2),
+            nn.BatchNorm1d(params.n_band*4),
+            nn.Tanh(),
+        )
+        self.decoder.apply(weights_init)
+        self.wave_gen = nn.Conv1d(params.n_band*4,params.n_band,7,padding=3)
+        self.loud_gen = nn.Conv1d(params.n_band*4,params.n_band,3,1,padding=1)
+        
+    def mod_sigmoid(self,x):
+        return 2 * torch.sigmoid(x)**2.3 + 1e-7
+    
+    def decode(self,x):
+        z_ = self.decoder(x)
+        loud = self.loud_gen(z_)
+        wave = self.wave_gen(z_)
+        x = torch.tanh(wave) *  self.mod_sigmoid(loud)
+        return x
+    
+    def encode(self,x):
+        melspec = self.melspec_transform(x)
+        mb_audio = self.pqmf(x)
+        z_audio = self.audio_encoder(mb_audio)
+        z_spec = self.spec_encoder(melspec)
+        z_spec = self.mapper(z_spec)
+        z_spec = torch.squeeze(z_spec,2)
+
+        min_size = min(z_audio.shape[-1],z_spec.shape[-1])
+        z = z_audio[:,:,:min_size] + z_spec[:,:,:min_size]
+        
+        z_q, vq_loss, _ = self.vq_layer(z)
+        return z_q, vq_loss, mb_audio, melspec
+    
+    def forward(self, x):
+        z_q, vq_loss, mb_audio,mel_spec_real = self.encode(x)
+        x_reconstruct = self.decode(z_q)
+
+        b,c,t = mb_audio.shape
+        x_reconstruct = x_reconstruct[:,:,:t]
+
+        min_size = min(x_reconstruct.shape[-1],mb_audio.shape[-1])
+        mb_audio = mb_audio[:,:,:min_size]
+        x_reconstruct = x_reconstruct[:,:,:min_size]
+
+        input_audio = torch.reshape(mb_audio,(b*c,1,-1))
+        output_audio = torch.reshape(x_reconstruct,(b*c,1,-1))
+        
+        audio_loss = self.spec_distance(input_audio,output_audio)
+
+        x_reconstruct = self.pqmf.inverse(x_reconstruct)
+        mel_spec_fake = self.melspec_transform(x_reconstruct)
+
+        min_size = min(mel_spec_fake.shape[-1],mel_spec_real.shape[-1])
+        mel_spec_fake = mel_spec_fake[:,:,:,:min_size]
+        mel_spec_real = mel_spec_real[:,:,:,:min_size]
+        spectral_loss = F.mse_loss(mel_spec_fake,mel_spec_real)
+        
+        return x_reconstruct,audio_loss,vq_loss,spectral_loss
