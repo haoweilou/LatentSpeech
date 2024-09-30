@@ -631,3 +631,94 @@ class VQAEFuse(nn.Module):
         spectral_loss = F.mse_loss(mel_spec_fake,mel_spec_real)
         
         return x_reconstruct,audio_loss,vq_loss,spectral_loss
+    
+
+class VQAESeq(nn.Module):
+    """Some Information about VQAEFuse"""
+    def __init__(self,params):
+        super().__init__()
+        hidden_dim = 16
+        self.params = params
+        self.spec_distance = AudioDistance(params,params.log_epsilon)
+        self.pqmf = PQMF(100,params.n_band)
+
+        
+        self.melspec_transform = torchaudio.transforms.MelSpectrogram(
+            sample_rate=48*1000, 
+            n_fft=400,
+            win_length=400,
+            hop_length=240,
+            n_mels=80  
+        )
+        self.spec_ae = VQSpecAE()
+        self.spec_ae.apply(weights_init)
+        self.mapper = nn.Sequential(
+            nn.Conv1d(80,16,1),
+            nn.BatchNorm1d(16),
+            nn.Conv1d(16,16,kernel_size=4,stride=4,padding=0),
+            nn.BatchNorm1d(16)
+        )
+
+        self.decoder = nn.Sequential(
+            nn.Conv1d(params.n_band,params.n_band*32,1),
+            nn.BatchNorm1d(params.n_band*32),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*32,params.n_band*16,kernel_size=3*2,stride=3,padding=3//2),
+            nn.BatchNorm1d(params.n_band*16),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*16,params.n_band*8,kernel_size=4*2,stride=4,padding=4//2),
+            nn.BatchNorm1d(params.n_band*8),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*8,params.n_band*4,kernel_size=5*2,stride=5,padding=5//2),
+            nn.BatchNorm1d(params.n_band*4),
+            nn.Tanh(),
+        )
+        self.decoder.apply(weights_init)
+        self.wave_gen = nn.Conv1d(params.n_band*4,params.n_band,7,padding=3)
+        self.loud_gen = nn.Conv1d(params.n_band*4,params.n_band,3,1,padding=1)
+        
+    def mod_sigmoid(self,x):
+        return 2 * torch.sigmoid(x)**2.3 + 1e-7
+    
+    def decode(self,x):
+        z_ = self.decoder(x)
+        loud = self.loud_gen(z_)
+        wave = self.wave_gen(z_)
+        x = torch.tanh(wave) *  self.mod_sigmoid(loud)
+        return x
+    
+    def encode(self,x):
+        melspec = self.melspec_transform(x)
+        mb_audio = self.pqmf(x)
+        z_audio = self.audio_encoder(mb_audio)
+        z_spec = self.spec_encoder(melspec)
+        z_spec = self.mapper(z_spec)
+        z_spec = torch.squeeze(z_spec,2)
+
+        min_size = min(z_audio.shape[-1],z_spec.shape[-1])
+        z = z_audio[:,:,:min_size] + z_spec[:,:,:min_size]
+        
+        z_q, vq_loss, _ = self.vq_layer(z)
+        return z_q, vq_loss, mb_audio, melspec
+    
+    def forward(self, x):
+
+        melspec_real = self.melspec_transform(x)
+        melspec_fake, vq_loss = self.spec_ae(melspec_real)
+        
+        latent_temp = self.mapper(melspec_fake.squeeze(1))
+
+        audio_fake = self.decode(latent_temp)
+        audio_real = self.pqmf(x)
+        b,c,t = audio_real.shape
+        audio_fake = audio_fake[:,:,:t]
+        audio_loss = self.spec_distance(audio_fake,audio_real)
+
+        min_size = min(melspec_fake.shape[-1],melspec_real.shape[-1])
+        melspec_fake = melspec_fake[:,:,:,:min_size]
+        melspec_real = melspec_real[:,:,:,:min_size]
+        spectral_loss = F.mse_loss(melspec_real,melspec_fake)
+
+        audio_fake = self.pqmf.inverse(audio_fake)
+        
+        return audio_fake,audio_loss,vq_loss,spectral_loss
