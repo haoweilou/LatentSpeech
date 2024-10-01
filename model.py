@@ -432,7 +432,7 @@ class VQSpecAE(nn.Module):
     def forward(self, x):
         #Spectrogram: Batch,1,Height,Width
         z_q, vq_loss = self.encode(x) #Batch,embed_dim,Height/4,Width/4
-        print(z_q.shape)
+        # print(z_q.shape)
         y = self.decode(z_q)
         return y, vq_loss
     
@@ -711,7 +711,10 @@ class VQAESeq(nn.Module):
         audio_fake = self.decode(latent_temp)
         audio_real = self.pqmf(x)
         b,c,t = audio_real.shape
-        audio_fake = audio_fake[:,:,:t]
+
+        min_size = min(audio_fake.shape[-1],audio_real.shape[-1])
+        audio_fake = audio_fake[:,:,:min_size] 
+        audio_real = audio_real[:,:,:min_size] 
         audio_loss = self.spec_distance(audio_fake,audio_real)
 
         min_size = min(melspec_fake.shape[-1],melspec_real.shape[-1])

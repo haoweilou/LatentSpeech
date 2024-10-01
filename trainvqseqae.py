@@ -23,7 +23,9 @@ model = VQAESeq(params).to(device)
 optimizer = optim.Adam(model.parameters(),lr=params.learning_rate)
 loss_log = pd.DataFrame({"total_loss":[],"spectral_loss":[],"vq_loss":[],"audio_loss":[]})
 dataset = BakerAudio(0,1000)
-loader = DataLoader(dataset,batch_size=params.batch_size,collate_fn=dataset.collate,drop_last=True,shuffle=True)
+batch_size = 16
+# loader = DataLoader(dataset,batch_size=params.batch_size,collate_fn=dataset.collate,drop_last=True,shuffle=True)
+loader = DataLoader(dataset,batch_size=batch_size,collate_fn=dataset.collate,drop_last=True,shuffle=True)
 epochs = 501
 model_name = "vqaeseq"
 
