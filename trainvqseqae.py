@@ -8,7 +8,7 @@ from params import params
 from dataset import BakerAudio
 from model import VQAESeq
 from tqdm import tqdm
-from function import saveModel,loadModel
+from function import saveModel
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 import pandas as pd
 torch.autograd.set_detect_anomaly(True)
@@ -20,15 +20,15 @@ embedding_dim=80
 commitment_cost=0.25
 
 model = VQAESeq(params).to(device)
+
 optimizer = optim.Adam(model.parameters(),lr=params.learning_rate)
 loss_log = pd.DataFrame({"total_loss":[],"spectral_loss":[],"vq_loss":[],"audio_loss":[]})
-dataset = BakerAudio(0,1000)
+dataset = BakerAudio(0,10000)
 batch_size = 16
 # loader = DataLoader(dataset,batch_size=params.batch_size,collate_fn=dataset.collate,drop_last=True,shuffle=True)
 loader = DataLoader(dataset,batch_size=batch_size,collate_fn=dataset.collate,drop_last=True,shuffle=True)
 epochs = 501
-model_name = "vqaeseq"
-
+model_name = "vqae"
 for epoch in range(0,epochs):
     loss_val = 0
     spectral_loss_ = 0
@@ -52,7 +52,7 @@ for epoch in range(0,epochs):
     
     print(f"Epoch: {epoch} Audio Loss: {audio_loss_/len(loader):.03f} Spectral Loss: {spectral_loss_/len(loader):.03f} VQ Loss: {vq_loss_/len(loader):.03f} Total: {loss_val/len(loader):.03f}")
     
-    if epoch % 50 == 0:
+    if epoch % 10 == 0:
         saveModel(model,f"{model_name}_{epoch}","./model/")
 
     loss_log.loc[len(loss_log.index)] = [loss_val/len(loader),spectral_loss_/len(loader),vq_loss_/len(loader),audio_loss_/len(loader)]

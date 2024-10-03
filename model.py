@@ -637,7 +637,6 @@ class VQAESeq(nn.Module):
     """Some Information about VQAEFuse"""
     def __init__(self,params):
         super().__init__()
-        hidden_dim = 16
         self.params = params
         self.spec_distance = AudioDistance(params,params.log_epsilon)
         self.pqmf = PQMF(100,params.n_band)

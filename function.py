@@ -82,7 +82,11 @@ def draw_wave(audio,name="Test",root="./fig/"):
 
 def draw_heatmap(data, vmin=0, vmax=1, color_map='viridis',name="Test",root="./fig/"):
     data = np.array(data)
-    
+    vmin = data.min()
+    vmax = data.max()
+    # data = (data - vmin) / (vmax - vmin)
+    vmin = 0
+    vmax = 1
     plt.figure(figsize=(10, 8))
     
     heatmap = plt.imshow(data,vmin=vmin, vmax=vmax, cmap=color_map, aspect='auto')
