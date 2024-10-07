@@ -252,7 +252,6 @@ class VQAE(nn.Module):
     def encode(self,x):
         mb_audio = self.pqmf(x)
         z = self.encoder(mb_audio)
-        print(z.shape)
         z_q, vq_loss, _ = self.vq_layer(z)
         return z_q, vq_loss, mb_audio
     
@@ -423,7 +422,7 @@ class VQSpecAE(nn.Module):
         b,embed,h,w = z.shape
         z = torch.reshape(z,(b,embed,-1))
         z_q, vq_loss, _ = self.vq_layer(z)#Batch size, embed_dim, 20*100
-        z_q = torch.reshape(z,(b,embed,h,w))
+        z_q = torch.reshape(z,(b,embed,h,w))#Batch size, embed_dim, 20, 100
         return z_q, vq_loss
 
     def decode(self,x):
@@ -432,7 +431,6 @@ class VQSpecAE(nn.Module):
     def forward(self, x):
         #Spectrogram: Batch,1,Height,Width
         z_q, vq_loss = self.encode(x) #Batch,embed_dim,Height/4,Width/4
-        # print(z_q.shape)
         y = self.decode(z_q)
         return y, vq_loss
     
@@ -635,7 +633,7 @@ class VQAEFuse(nn.Module):
 
 class VQAESeq(nn.Module):
     """Some Information about VQAEFuse"""
-    def __init__(self,params):
+    def __init__(self,params,embed_dim=16):
         super().__init__()
         self.params = params
         self.spec_distance = AudioDistance(params,params.log_epsilon)
@@ -649,7 +647,7 @@ class VQAESeq(nn.Module):
             hop_length=240,
             n_mels=80  
         )
-        self.spec_ae = VQSpecAE()
+        self.spec_ae = VQSpecAE(embed_dim)
         self.spec_ae.apply(weights_init)
         self.mapper = nn.Sequential(
             nn.Conv1d(80,16,1),
@@ -688,17 +686,8 @@ class VQAESeq(nn.Module):
     
     def encode(self,x):
         melspec = self.melspec_transform(x)
-        mb_audio = self.pqmf(x)
-        z_audio = self.audio_encoder(mb_audio)
-        z_spec = self.spec_encoder(melspec)
-        z_spec = self.mapper(z_spec)
-        z_spec = torch.squeeze(z_spec,2)
-
-        min_size = min(z_audio.shape[-1],z_spec.shape[-1])
-        z = z_audio[:,:,:min_size] + z_spec[:,:,:min_size]
-        
-        z_q, vq_loss, _ = self.vq_layer(z)
-        return z_q, vq_loss, mb_audio, melspec
+        z_q, vq_loss = self.spec_ae.encode(melspec)
+        return z_q
     
     def forward(self, x):
 
