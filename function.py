@@ -6,7 +6,6 @@ import math
 import matplotlib.pyplot as plt
 import pandas as pd
 from pypinyin import pinyin, Style
-
 def saveLog(log_record:dict,name="log",root="./save/log/"):
     log = pd.DataFrame(log_record)
     log.to_csv(f"{root}{name}")
@@ -80,13 +79,29 @@ def draw_wave(audio,name="Test",root="./fig/"):
     plt.savefig(f"{root}{name}")
     plt.clf()
 
+
+def draw_dot(datas:list,label:list,color=["blue","red","green","orange"],name="dot",root="./fig/"):
+    plt.figure()
+    for i,data in enumerate(datas): 
+        # Plot for the 4600x64 embedding
+        plt.scatter(data[:, 0], data[:, 1], s=8, color=color[i],label=label[i], alpha=0.4)
+
+    # Plot for the 512x64 embedding
+
+    plt.title(name)
+    plt.legend()
+    plt.savefig(f"{root}{name}", bbox_inches='tight', pad_inches=0)
+    
+    # Display the heatmap
+    plt.clf()
+
 def draw_heatmap(data, vmin=0, vmax=1, color_map='viridis',name="Test",root="./fig/"):
     data = np.array(data)
     vmin = data.min()
     vmax = data.max()
     # data = (data - vmin) / (vmax - vmin)
-    vmin = 0
-    vmax = 1
+    # vmin = 0
+    # vmax = 1
     plt.figure(figsize=(10, 8))
     
     heatmap = plt.imshow(data,vmin=vmin, vmax=vmax, cmap=color_map, aspect='auto')
@@ -196,3 +211,4 @@ def collapse_and_duration(phoneme_tensor):
     collapsed_list.append(duration)
 
     return collapsed_list
+

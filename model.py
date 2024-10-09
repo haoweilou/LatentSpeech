@@ -191,6 +191,22 @@ class VQEmbedding(nn.Module):
         
         return quantized, loss, encoding_indices
     
+    def forward_inference(self, z):
+        # Flatten the input z
+        z_flattened = z.permute(0, 2, 1).contiguous().view(-1, self.embedding_dim)
+        
+        # Compute distances between z and embedding vectors
+        distances = (torch.sum(z_flattened ** 2, dim=1, keepdim=True) +
+                    torch.sum(self.embedding.weight ** 2, dim=1) -
+                    2 * torch.matmul(z_flattened, self.embedding.weight.t()))
+        encoding_indices = torch.argmin(distances, dim=1)
+
+        # Directly index the embedding weights using encoding_indices
+        quantized = self.embedding.weight[encoding_indices].view(z.size())
+        # print(quantized.shape)
+        # print(z_flattened[0],self.embedding.weight[encoding_indices][0],self.embedding.weight[389])
+
+        return quantized, encoding_indices
 
 class VQAE(nn.Module):
     """Some Information about AE"""
@@ -411,10 +427,10 @@ class VQSpecAE(nn.Module):
         self.encoder = SpecEncoder(channel=128)
         self.encoder.apply(weights_init)
         self.mapper = nn.Conv2d(128,embed_dim,1)
-        self.vq_layer = VQEmbedding(num_embeddings=512, embedding_dim=embed_dim,commitment_cost=0.1)
-
         self.decoder = SpecDecoder(in_channel=embed_dim,out_channel=1,channel=128)
         self.decoder.apply(weights_init)
+        self.vq_layer = VQEmbedding(num_embeddings=512, embedding_dim=embed_dim,commitment_cost=0.1)
+
 
     def encode(self,x):
         z = self.encoder(x) #Batch,128,Height/4,Width/4
@@ -425,6 +441,15 @@ class VQSpecAE(nn.Module):
         z_q = torch.reshape(z,(b,embed,h,w))#Batch size, embed_dim, 20, 100
         return z_q, vq_loss
 
+    def encode_inference(self,x):
+        z = self.encoder(x) #Batch,128,Height/4,Width/4
+        z = self.mapper(z) #Batch,embed_dim,Height/4,Width/4
+        b,embed,h,w = z.shape
+        z = torch.reshape(z,(b,embed,h*w))
+        z_q, _ = self.vq_layer.forward_inference(z)#Batch size, embed_dim, 20*100
+        z_q = torch.reshape(z,(b,embed,h,w))#Batch size, embed_dim, 20, 100
+        return z_q
+    
     def decode(self,x):
         return self.decoder(x)
 
@@ -684,10 +709,17 @@ class VQAESeq(nn.Module):
         x = torch.tanh(wave) *  self.mod_sigmoid(loud)
         return x
     
-    def encode(self,x):
+    def encode_inference(self,x):
         melspec = self.melspec_transform(x)
-        z_q, vq_loss = self.spec_ae.encode(melspec)
+        z_q = self.spec_ae.encode_inference(melspec)
         return z_q
+    
+    def decode_inference(self,z_q):
+        spec = self.spec_ae.decode(z_q)
+        latent = self.mapper(spec.squeeze(1))
+        audio = self.decode(latent)
+        audio = self.pqmf.inverse(audio)
+        return audio
     
     def forward(self, x):
 

@@ -1,33 +1,30 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from ae import VQAE
+from params import params
+from sklearn.manifold import TSNE
+tsne = TSNE(n_components=2, random_state=42)
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-from vqae import VQVAE,Encoder
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-spectrogram = torch.randn((12,1,80,400)).to(device)
-# encoder = Encoder(in_channel=1,channel=128).to(device)
-# z = encoder(spectrogram)
-# reducer = nn.Conv2d(128, 64, 1).to(device)
-# print(z.shape)#Batch size, channel, 20, 100
-# z = reducer(z)
-# print(z.shape)#Batch size, embed_dim, 20, 100
-# b,embed,h,w = z.shape
-# z = z.view(z.size(0),z.size(1),-1)
-# print(z.shape)#Batch size, embed_dim, 20*100
+audio = torch.randn(1,1,48000).to(device)
+vqae = VQAE(params).to(device)
+from function import loadModel,save_audio,draw_wave,draw_heatmap,draw_dot
+from sklearn.decomposition import PCA
+pca = PCA(n_components=2)
 
-# from model import VQEmbedding
-# vq_layer = VQEmbedding(512,64).to(device)
+audio_fake,audio_loss,vq_loss,spectral_loss = vqae(audio)
+z_q = vqae.encode_inference(audio)
+# b,embed,h,w = z_q.shape
+# z_q =  torch.reshape(z_q,(b,embed,-1))
+z_q = z_q[0].T
+codebook = vqae.vq_layer.embedding.weight.detach().cpu()
+print(z_q.shape,codebook.shape)
+z_q_flatten = z_q.detach().cpu()
+combined = torch.concat((z_q_flatten,codebook),dim=0)
+combined = pca.fit_transform(combined)
+draw_dot([combined[:-512],combined[-512:]],["z_q","codebook"],name="z_q and codebook")
 
-# z_q, vq_loss, _ = vq_layer(z)
-# print(z_q.shape,vq_loss)
-# z_q = torch.reshape(z,(b,embed,h,w))
-# print(z_q.shape,vq_loss)
+# audio_fake = vqae.decode_inference(z_q,b,embed_dim,H,T)
 
-# from vqae import Decoder
-# decoder = Decoder(64,1,128,2,32,4).to(device)
-# y = decoder(z_q)
-from model import VQSpecAE
-model = VQSpecAE().to(device)
-y,vq_loss = model(spectrogram)
-print(spectrogram.shape,y.shape)
-print(vq_loss)
-
+# print(z_q.shape,audio_fake.shape)
