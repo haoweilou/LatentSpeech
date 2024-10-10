@@ -213,6 +213,7 @@ class Quantize(nn.Module):
         self.register_buffer("embed", embed)
         self.register_buffer("cluster_size", torch.zeros(n_embed))
         self.register_buffer("embed_avg", embed.clone())
+
     def encode(self,input):
         flatten = input.reshape(-1, self.dim)
         dist = (
@@ -383,3 +384,100 @@ class VQAE(nn.Module):
         
         audio = self.pqmf.inverse(audio_f)
         return audio,audio_loss,vq_loss,spectral_loss
+
+
+class VQAE_Audio(nn.Module):
+    def __init__(self,params,embed_dim=64,num_embeddings=1024):
+        super().__init__()
+        self.params = params
+        self.spec_distance = AudioDistance(params,params.log_epsilon)
+        self.pqmf = PQMF(100,params.n_band)
+        
+        self.encoder = nn.Sequential(
+            nn.Conv1d(params.n_band,params.n_band*4,7,padding=3),
+            nn.BatchNorm1d(params.n_band*4),
+            nn.Tanh(),
+            nn.Conv1d(params.n_band*4,params.n_band*8,kernel_size=5*2+1,stride=5,padding=5),
+            nn.BatchNorm1d(params.n_band*8),
+            nn.Tanh(),
+            nn.Conv1d(params.n_band*8,params.n_band*16,kernel_size=4*2+1,stride=4,padding=4),
+            nn.BatchNorm1d(params.n_band*16),
+            nn.Tanh(),
+            nn.Conv1d(params.n_band*16,params.n_band*32,kernel_size=3*2+1,stride=3,padding=3),
+            nn.BatchNorm1d(params.n_band*32),
+            nn.Tanh(),
+            nn.Conv1d(params.n_band*32,embed_dim,1),
+            nn.BatchNorm1d(embed_dim),
+            nn.Tanh(),
+        )
+        self.encoder.apply(weights_init)
+
+        # self.vq_layer = VQEmbedding(512,embed_dim,0.25)
+        self.vq_layer = Quantize(embed_dim,num_embeddings)
+        
+        self.decoder = nn.Sequential(
+            nn.Conv1d(embed_dim,params.n_band*32,1),
+            nn.BatchNorm1d(params.n_band*32),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*32,params.n_band*16,kernel_size=3*2,stride=3,padding=3//2),
+            nn.BatchNorm1d(params.n_band*16),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*16,params.n_band*8,kernel_size=4*2,stride=4,padding=4//2),
+            nn.BatchNorm1d(params.n_band*8),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*8,params.n_band*4,kernel_size=5*2,stride=5,padding=5//2),
+            nn.BatchNorm1d(params.n_band*4),
+            nn.Tanh(),
+        )
+        self.decoder.apply(weights_init)
+        self.wave_gen = nn.Conv1d(params.n_band*4,params.n_band,7,padding=3)
+        self.loud_gen = nn.Conv1d(params.n_band*4,params.n_band,3,1,padding=1)
+        
+    def mod_sigmoid(self,x):
+        return 2 * torch.sigmoid(x)**2.3 + 1e-7
+    
+    def decode(self,x):
+        z_ = self.decoder(x)
+        loud = self.loud_gen(z_)
+        wave = self.wave_gen(z_)
+        x = torch.tanh(wave) *  self.mod_sigmoid(loud)
+        return x
+    
+    def encode_infernce(self,x):
+        mb_audio = self.pqmf(x)
+        z = self.encoder(mb_audio)
+
+        z_q = z.permute(0, 2, 1)#height, width,channel
+        # z = torch.reshape(z,(b,embed,h*w))
+        z_q = self.vq_layer.encode(z_q)#height, width, channel
+        z_q = z_q.permute(0, 2, 1)#channel, height, width
+        # z_q, vq_loss, _ = self.vq_layer(z)
+        return z_q
+    
+    def encode(self,x):
+        mb_audio = self.pqmf(x)
+        z = self.encoder(mb_audio)
+
+        z_q = z.permute(0, 2, 1)#height, width,channel
+        # z = torch.reshape(z,(b,embed,h*w))
+        z_q, vq_loss, _ = self.vq_layer(z_q)#height, width, channel
+        z_q = z_q.permute(0, 2, 1)#channel, height, width
+        # z_q, vq_loss, _ = self.vq_layer(z)
+        return z_q, vq_loss, mb_audio
+    
+    def equal_size(self,a:torch.Tensor,b:torch.Tensor):
+        min_size = min(a.shape[-1],b.shape[-1])
+        a_truncated = a[..., :min_size]  # Keep all dimensions except truncate last dimension
+        b_truncated = b[..., :min_size]  # Same truncation for b
+        return a_truncated, b_truncated
+
+    def forward(self, audio):
+        #x is audio, X:[Batch,A]
+        z_q, vq_loss, audio_r = self.encode(audio)
+        audio_f = self.decode(z_q)
+        audio_r,audio_f = self.equal_size(audio_r,audio_f)
+
+        audio_loss = self.spec_distance(audio_r,audio_f)
+
+        audio_f = self.pqmf.inverse(audio_f)
+        return audio_f,audio_loss,vq_loss
