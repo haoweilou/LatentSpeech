@@ -159,8 +159,12 @@ class VQEmbedding(nn.Module):
         encodings = torch.zeros(encoding_indices.size(0), self.num_embeddings, device=z.device)
         encodings.scatter_(1, encoding_indices, 1)
         # Quantize and unflatten
-        #[batch*T,num_embed] * [num_embed,feat_dim] => [batch,T,feat_dim]
-        quantized = torch.matmul(encodings, self.embedding.weight).view(z.size())
+        #[batch*T,num_embed] * [num_embed,feat_dim] => [batch*T,feat_dim]
+        quantized = torch.matmul(encodings, self.embedding.weight)
+
+        b,feat_dim,t = z.shape
+        #[batch*T,num_embed] => [batch,T,num_embed] => [batch,num_embed,T]
+        quantized = quantized.view(b,t,feat_dim).permute(0, 2, 1).contiguous()
 
         # Calculate loss
         e_latent_loss = F.mse_loss(quantized.detach(), z)
@@ -174,28 +178,91 @@ class VQEmbedding(nn.Module):
     
     def forward_inference(self, z):
         # Flatten the input z
+        #[batch,num_embed,T]
         z_flattened = z.permute(0, 2, 1).contiguous().view(-1, self.embedding_dim)
-        print(z_flattened.shape)
         #distance = [Z-codebook]*2 = Z^2 - 2*Z*codebook + codebook^2
         #[batch*T,num_embed]
         distances = (torch.sum(z_flattened ** 2, dim=1, keepdim=True)  + torch.sum(self.embedding.weight ** 2, dim=1)
                     - 2 * torch.matmul(z_flattened, self.embedding.weight.t()))
 
         #batch*T,1
+        # quantized = self.embedding.weight[encoding_indices.squeeze()]
         encoding_indices = torch.argmin(distances, dim=1).unsqueeze(1)
-        quantized = self.embedding.weight[encoding_indices.squeeze()]
-        quantized = quantized.view(quantized.size())
-        
-        # #batch*T,num_embed, filled with one and one , one is for selected embed
-        # encodings = torch.zeros(encoding_indices.size(0), self.num_embeddings, device=z.device)
-        # encodings.scatter_(1, encoding_indices, 1)
-        # # Quantize and unflatten
-        # #[batch*T,num_embed] * [num_embed,feat_dim] => [batch,T,feat_dim]
-        # quantized = torch.matmul(encodings, self.embedding.weight).view(z.size())
+        encodings = torch.zeros(encoding_indices.size(0), self.num_embeddings, device=z.device)
+        encodings.scatter_(1, encoding_indices, 1)
+        # Quantize and unflatten
+        #[batch*T,num_embed] * [num_embed,feat_dim]
+        quantized = torch.matmul(encodings, self.embedding.weight)#[batch*T,feat_dim]
+        b,feat_dim,t = z.shape
+        #[batch*T,num_embed] => [batch,T,num_embed] => [batch,num_embed,T]
+        quantized = quantized.view(b,t,feat_dim).permute(0, 2, 1).contiguous()
+
         return quantized, encoding_indices
 
+
+class Quantize(nn.Module):
+    def __init__(self, dim, n_embed, decay=0.99, eps=1e-5):
+        super().__init__()
+
+        self.dim = dim
+        self.n_embed = n_embed
+        self.decay = decay
+        self.eps = eps
+
+        embed = torch.randn(dim, n_embed)
+        self.register_buffer("embed", embed)
+        self.register_buffer("cluster_size", torch.zeros(n_embed))
+        self.register_buffer("embed_avg", embed.clone())
+    def encode(self,input):
+        flatten = input.reshape(-1, self.dim)
+        dist = (
+                flatten.pow(2).sum(1, keepdim=True)
+                - 2 * flatten @ self.embed
+                + self.embed.pow(2).sum(0, keepdim=True)
+        )
+        _, embed_ind = (-dist).max(1)
+        embed_onehot = F.one_hot(embed_ind, self.n_embed).type(flatten.dtype)
+        embed_ind = embed_ind.view(*input.shape[:-1])
+        quantize = self.embed_code(embed_ind)
+        return quantize
+    
+    def forward(self, input):
+        flatten = input.reshape(-1, self.dim)
+        dist = (
+                flatten.pow(2).sum(1, keepdim=True)
+                - 2 * flatten @ self.embed
+                + self.embed.pow(2).sum(0, keepdim=True)
+        )
+        _, embed_ind = (-dist).max(1)
+        embed_onehot = F.one_hot(embed_ind, self.n_embed).type(flatten.dtype)
+        embed_ind = embed_ind.view(*input.shape[:-1])
+        quantize = self.embed_code(embed_ind)
+
+        if self.training:
+            embed_onehot_sum = embed_onehot.sum(0)
+            embed_sum = flatten.transpose(0, 1) @ embed_onehot
+
+            self.cluster_size.data.mul_(self.decay).add_(
+                embed_onehot_sum, alpha=1 - self.decay
+            )
+            self.embed_avg.data.mul_(self.decay).add_(embed_sum, alpha=1 - self.decay)
+            n = self.cluster_size.sum()
+            cluster_size = (
+                    (self.cluster_size + self.eps) / (n + self.n_embed * self.eps) * n
+            )
+            embed_normalized = self.embed_avg / cluster_size.unsqueeze(0)
+            self.embed.data.copy_(embed_normalized)
+
+        diff = (quantize.detach() - input).pow(2).mean()
+        quantize = input + (quantize - input).detach()
+
+        return quantize, diff, embed_ind
+
+    def embed_code(self, embed_id):
+        return F.embedding(embed_id, self.embed.transpose(0, 1))
+
 class VQAE(nn.Module):
-    def __init__(self,params,embed_dim=16):
+    def __init__(self,params,embed_dim=64):
         super().__init__()
         self.params = params
         self.spec_distance = AudioDistance(params,params.log_epsilon)
@@ -214,7 +281,8 @@ class VQAE(nn.Module):
         self.spec_encoder.apply(weights_init)
         self.spec_mapper = nn.Conv2d(128,embed_dim,1)
 
-        self.vq_layer = VQEmbedding(512,embed_dim,0.1)
+        # self.vq_layer = VQEmbedding(512,embed_dim,0.25)
+        self.vq_layer = Quantize(64,512)
         
         self.spec_decoder = SpecDecoder(in_channel=embed_dim,out_channel=1,channel=128)
         self.spec_decoder.apply(weights_init)
@@ -278,11 +346,11 @@ class VQAE(nn.Module):
         
         z = self.spec_encoder(melspec_r) #Batch,128,Height/4,Width/4
         z = self.spec_mapper(z) #Batch,embed_dim,Height/4,Width/4
-        b,embed,h,w = z.shape
-        z = torch.reshape(z,(b,embed,-1))
-        z_q, indices = self.vq_layer.forward_inference(z)#Batch size, embed_dim, 20*100
-        print(z_q.shape)
-        # z_q = torch.reshape(z,(b,embed,h,w))#Batch size, embed_dim, 20, 100
+        # b,embed,h,w = z.shape
+        z_q = z.permute(0, 2, 3, 1)#height, width,channel
+        # z = torch.reshape(z,(b,embed,h*w))
+        z_q, vq_loss, _ = self.vq_layer(z_q)#height, width, channel
+        z_q = z_q.permute(0, 3, 1, 2)#channel, height, width
         return z_q
 
     def forward(self, x):
@@ -291,10 +359,12 @@ class VQAE(nn.Module):
 
         z = self.spec_encoder(melspec_r) #Batch,128,Height/4,Width/4
         z = self.spec_mapper(z) #Batch,embed_dim,Height/4,Width/4
-        b,embed,h,w = z.shape
-        z = torch.reshape(z,(b,embed,-1))
-        z_q, vq_loss, _ = self.vq_layer(z)#Batch size, embed_dim, 20*100
-        z_q = torch.reshape(z,(b,embed,h,w))#Batch size, embed_dim, 20, 100
+        # b,embed,h,w = z.shape
+        z_q = z.permute(0, 2, 3, 1)#height, width,channel
+        # z = torch.reshape(z,(b,embed,h*w))
+        z_q, vq_loss, _ = self.vq_layer(z_q)#height, width, channel
+        z_q = z_q.permute(0, 3, 1, 2)#channel, height, width
+        # z_q = torch.reshape(z_q,(b,embed,h,w))#Batch size, embed_dim, 20, 100
         melspec_f = self.spec_decoder(z_q)
 
         # melspec_f, vq_loss = self.spec_vqae(melspec_r)
@@ -307,6 +377,7 @@ class VQAE(nn.Module):
         melspec_r,melspec_f = self.equal_size(melspec_r,melspec_f)
 
         audio_loss = self.spec_distance(audio_r,audio_f)
+        # audio_loss = self.spec_distance(audio_r,audio_r)
         spectral_loss = F.mse_loss(melspec_r,melspec_f)
         
         
