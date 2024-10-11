@@ -175,7 +175,7 @@ def hanzi_to_pinyin(hanzi_string):
 
 def hidden_to_audio(hidden):
     #hidden: B,T,C
-    from model import AE
+    from no_used.model import AE
     from params import params
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     ae = AE(params).to(device)

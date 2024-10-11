@@ -12,10 +12,10 @@ import os
 from tqdm import tqdm
 import random
 import pandas as pd
-from model import AE
+from no_used.model import AE
 from function import loadModel, load_audio
 from torch.nn.utils.rnn import pad_sequence
-
+import json
 def preprocess(sample_rate,audio,filename):
     mel_args = {
       'sample_rate': sample_rate,
@@ -60,7 +60,6 @@ class BakerAudio(torch.utils.data.Dataset):
             output = output[:,:48000*10]
         return output.unsqueeze(1) 
         
-
     def __getitem__(self, index):
         return self.audios[index]
 
@@ -91,3 +90,39 @@ class LJSpeechAudio(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.audios)
+    
+class BakerText(torch.utils.data.Dataset):
+    def __init__(self,normalize=True,path="D:/baker/",start=0,end=10000):
+        super(BakerText, self).__init__()
+        self.max_word_len = 512
+        self.path = path
+        self.pho_dict = json.loads(open("./save/cache/phoneme.json","r").read())["phoneme"]
+        self.phonemes = json.loads(open("./save/cache/baker_hidden.json","r").read())
+
+        self.keys = list(self.phonemes.keys())[start:end]
+        x_raw = [self.phonemes[k]["phoneme"] for k in self.keys]
+        s_raw = [self.phonemes[k]["tone_list"] for k in self.keys]
+        self.src_len = torch.tensor([len(self.phonemes[k]["phoneme"]) for k in self.keys])
+        self.mel_len = torch.tensor([self.phonemes[k]["mel_size"] for k in self.keys])
+        self.num_sentence = end - start
+        
+        self.x = pad_sequence(self.pho2idx(x_raw,self.pho_dict,normalize=normalize),batch_first=True,padding_value=0)
+        self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in s_raw],batch_first=True,padding_value=0)
+        self.l = pad_sequence([torch.tensor(self.phonemes[k]["mel_len"]) for k in self.keys],batch_first=True,padding_value=0)
+
+
+    def pho2idx(self,phonemes,pho_list:list,normalize=True):
+        output = []
+        for phoneme in phonemes:
+            if normalize:
+                index_pho= [pho_list.index(p) for p in phoneme]
+            else: 
+                index_pho= [1+pho_list.index(p) for p in phoneme]
+            output.append(torch.tensor(index_pho))
+        return output
+    
+    def __getitem__(self, index):
+        return self.x[index], self.s[index], self.l[index], self.src_len[index], self.mel_len[index]
+
+    def __len__(self):
+        return len(self.y)
