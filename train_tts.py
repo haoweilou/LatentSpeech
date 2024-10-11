@@ -27,8 +27,8 @@ loss_func = FastSpeechLoss()
 
 lr = learning_rate()
 
-bakertext = BakerText(normalize=False,start=0,end=500)
-bakeraudio = BakerAudio(start=0,end=500,path="L:/baker/")
+bakertext = BakerText(normalize=False,start=0,end=2000)
+bakeraudio = BakerAudio(start=0,end=2000)
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
     text_batch = [torch.stack([item[i] for item in text_batch]) for i in range(len(text_batch[0]))]
@@ -50,7 +50,7 @@ with open("./save/cache/phoneme.json","r") as f:
 
 C = len(phoneme_set)+1  #Number of Phoneme Class, include blank, 87+1=88
 aligner = SpeechRecognitionModel(input_dim=80,output_dim=C).to(device)
-aligner = loadModel(aligner,"aligner_50","./model")
+aligner = loadModel(aligner,"aligner_500","./model")
 
 num_epoch = 301
 for epoch in range(301):
@@ -70,7 +70,6 @@ for epoch in range(301):
             outputs = [collapse_and_duration(i) for i in outputs] 
             l = pad_sequence([torch.tensor(i) for i in outputs],batch_first=True,padding_value=0).to(device) 
             l = torch.ceil(l/dilation_size).int()
-            # l = F.pad(l,(0,67-l.shape[1]), "constant", 0)
             padd_size = x.shape[-1] - l.shape[-1]
             if padd_size > 0: l = F.pad(l,(0,padd_size), "constant", 0)
 
@@ -78,6 +77,7 @@ for epoch in range(301):
         max_src_len = x.shape[1]
         max_mel_len = latent_r.shape[1]
         latent_f,log_l_pred,mel_masks = tts_model(x,s,src_lens=src_lens,mel_lens=mel_lens,duration_target=l,max_mel_len=max_mel_len)
+        l = l[:,:log_l_pred.shape[-1]]
         loss,mse_loss,duration_loss = loss_func(latent_r,latent_f,log_l_pred,l,mel_masks,device=device)
         total_loss += loss.item()
         mse_loss_ += mse_loss.item()
