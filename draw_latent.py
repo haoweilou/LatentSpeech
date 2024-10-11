@@ -13,22 +13,22 @@ from torch.utils.data import DataLoader
 from params import params
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-is_audio = True
+is_audio = False
 embed_dim = 64
 if is_audio:
     num_embeddings=2048
-    num = 100
+    num = 130
     model_name = "vqae_audio"
     model = VQAE_Audio(params,embed_dim,num_embeddings).to(device)
 else:
-    num = 70
+    num = 130
     model_name = "vqae"
     model = VQAE(params,embed_dim=64).to(device)
 from sklearn.decomposition import PCA
 
 pca = PCA(n_components=2)
 model = loadModel(model,f"{model_name}_{num}","./model/")
-dataset = BakerAudio(0,10,"L:/baker/")
+dataset = BakerAudio(0,10,"D:/baker/")
 loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
 with torch.no_grad():
     for audio in tqdm(loader):

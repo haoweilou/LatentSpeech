@@ -396,19 +396,19 @@ class VQAE_Audio(nn.Module):
         self.encoder = nn.Sequential(
             nn.Conv1d(params.n_band,params.n_band*4,7,padding=3),
             nn.BatchNorm1d(params.n_band*4),
-            nn.Tanh(),
+            nn.LeakyReLU(0.2),
             nn.Conv1d(params.n_band*4,params.n_band*8,kernel_size=5*2+1,stride=5,padding=5),
             nn.BatchNorm1d(params.n_band*8),
-            nn.Tanh(),
+            nn.LeakyReLU(0.2),
             nn.Conv1d(params.n_band*8,params.n_band*16,kernel_size=4*2+1,stride=4,padding=4),
             nn.BatchNorm1d(params.n_band*16),
-            nn.Tanh(),
+            nn.LeakyReLU(0.2),
             nn.Conv1d(params.n_band*16,params.n_band*32,kernel_size=3*2+1,stride=3,padding=3),
             nn.BatchNorm1d(params.n_band*32),
-            nn.Tanh(),
+            nn.LeakyReLU(0.2),
             nn.Conv1d(params.n_band*32,embed_dim,1),
             nn.BatchNorm1d(embed_dim),
-            nn.Tanh(),
+            nn.LeakyReLU(0.2),
         )
         self.encoder.apply(weights_init)
 
@@ -418,16 +418,16 @@ class VQAE_Audio(nn.Module):
         self.decoder = nn.Sequential(
             nn.Conv1d(embed_dim,params.n_band*32,1),
             nn.BatchNorm1d(params.n_band*32),
-            nn.Tanh(),
+            nn.LeakyReLU(0.2),
             nn.ConvTranspose1d(params.n_band*32,params.n_band*16,kernel_size=3*2,stride=3,padding=3//2),
             nn.BatchNorm1d(params.n_band*16),
-            nn.Tanh(),
+            nn.LeakyReLU(0.2),
             nn.ConvTranspose1d(params.n_band*16,params.n_band*8,kernel_size=4*2,stride=4,padding=4//2),
             nn.BatchNorm1d(params.n_band*8),
-            nn.Tanh(),
+            nn.LeakyReLU(0.2),
             nn.ConvTranspose1d(params.n_band*8,params.n_band*4,kernel_size=5*2,stride=5,padding=5//2),
             nn.BatchNorm1d(params.n_band*4),
-            nn.Tanh(),
+            nn.LeakyReLU(0.2),
         )
         self.decoder.apply(weights_init)
         self.wave_gen = nn.Conv1d(params.n_band*4,params.n_band,7,padding=3)
@@ -443,7 +443,7 @@ class VQAE_Audio(nn.Module):
         x = torch.tanh(wave) *  self.mod_sigmoid(loud)
         return x
     
-    def encode_infernce(self,x):
+    def encode_inference(self,x):
         mb_audio = self.pqmf(x)
         z = self.encoder(mb_audio)
 
