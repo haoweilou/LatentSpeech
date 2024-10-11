@@ -19,12 +19,12 @@ num_embeddings=256
 embedding_dim=80
 commitment_cost=0.25
 
-model = VQAE_Audio(params,embed_dim=16,num_embeddings=1024).to(device)
+model = VQAE_Audio(params,embed_dim=64,num_embeddings=2048).to(device)
 
 optimizer = optim.Adam(model.parameters(),lr=params.learning_rate)
 loss_log = pd.DataFrame({"total_loss":[],"vq_loss":[],"audio_loss":[]})
-dataset1 = BakerAudio(0,500)
-dataset2 = LJSpeechAudio(0,500)
+dataset1 = BakerAudio(0,10000)
+dataset2 = LJSpeechAudio(0,10000)
 dataset = ConcatDataset([dataset1, dataset2])
 batch_size = 32
 # loader = DataLoader(dataset,batch_size=params.batch_size,collate_fn=dataset.collate,drop_last=True,shuffle=True)
