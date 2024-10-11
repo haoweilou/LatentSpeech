@@ -124,4 +124,4 @@ class BakerText(torch.utils.data.Dataset):
         return self.x[index], self.s[index], self.l[index], self.src_len[index], self.mel_len[index]
 
     def __len__(self):
-        return len(self.y)
+        return len(self.x)

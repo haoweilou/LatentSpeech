@@ -212,3 +212,24 @@ def collapse_and_duration(phoneme_tensor):
 
     return collapsed_list
 
+def collapse_and_duration(phoneme_tensor):
+    phoneme_array = phoneme_tensor.detach().cpu().numpy()
+    # Initialize variables
+    collapsed_list = []
+    current_phoneme = phoneme_array[0]
+    duration = 1
+
+    # Loop through the tensor elements
+    for phoneme in phoneme_array[1:]:
+        if phoneme == current_phoneme or phoneme == 0:
+            current_phoneme = phoneme
+            duration += 1
+        else:
+            collapsed_list.append(duration)
+            current_phoneme = phoneme
+            duration = 1
+
+    # Append the last phoneme and its duration
+    collapsed_list.append(duration)
+
+    return collapsed_list

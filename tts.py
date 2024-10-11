@@ -386,7 +386,7 @@ class Decoder(nn.Module):
 
 class StyleSpeech(nn.Module):
     """Some Information about StyleSpeech"""
-    def __init__(self,config,fuse_step = 0):
+    def __init__(self,config,fuse_step = 0,embed_dim=64):
         super(StyleSpeech, self).__init__()
         self.max_word = config["max_seq_len"] + 1
         self.pho_encoder = Encoder(config["pho_config"],max_word=self.max_word)
@@ -396,7 +396,7 @@ class StyleSpeech(nn.Module):
         self.mel_linear = nn.Sequential(
             nn.Linear(
                 config["fuse_config"]["word_dim"],
-                16
+                embed_dim
             ),
             nn.LeakyReLU(.2)
         ) 
@@ -415,3 +415,22 @@ class StyleSpeech(nn.Module):
         mel = self.mel_linear(fused)       
 
         return mel,log_duration_prediction,mel_mask
+
+class FastSpeechLoss(nn.Module):
+    """Some Information about FastSpeechLoss"""
+    def __init__(self):
+        super(FastSpeechLoss, self).__init__()
+        self.mse_loss = nn.MSELoss()
+        self.mae_loss = nn.L1Loss()
+
+    def forward(self, y,y_pred,log_l_pred,l,mel_masks,device="cuda"):
+        log_l = torch.log(l.float() + 1).to(device)
+        # mel_masks = torch.logical_not(mel_masks.unsqueeze(-1).expand_as(y_pred))
+        # y = y*mel_masks
+        # y_pred = y_pred*mel_masks
+
+        y = y.to(device)
+        mel_loss = self.mse_loss(y_pred, y)
+        duration_loss = self.mae_loss(log_l_pred, log_l)
+        total_loss = mel_loss+duration_loss
+        return total_loss, mel_loss, duration_loss

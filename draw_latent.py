@@ -13,22 +13,25 @@ from torch.utils.data import DataLoader
 from params import params
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-is_audio = True
+is_audio = False
 embed_dim = 64
 if is_audio:
     num_embeddings=2048
-    num = 280
+    num = 120
     model_name = "vqae_audio"
     model = VQAE_Audio(params,embed_dim,num_embeddings).to(device)
 else:
-    num = 190
+    num = 200
     model_name = "vqae"
     model = VQAE(params,embed_dim=64).to(device)
 from sklearn.decomposition import PCA
 
 pca = PCA(n_components=2)
-model = loadModel(model,f"{model_name}_{num}","./model/")
-dataset = BakerAudio(0,10,"L:/baker/")
+# model = loadModel(model,f"{model_name}_{num}","./model/")
+model = loadModel(model,f"{model_name}","./model/")
+
+# dataset = BakerAudio(1,10,"L:/baker/")
+dataset = LJSpeechAudio(0,10,"L:/LJSpeech/")
 loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
 with torch.no_grad():
     for audio in tqdm(loader):
@@ -36,7 +39,6 @@ with torch.no_grad():
         time_steps = audio.shape[-1]
         pad_amount = (16 - (time_steps % 16)) % 16
         if pad_amount > 0:audio = F.pad(audio, (0, pad_amount))
-        # a,_,_ = model(audio)
         
         draw_wave(audio[0][0].to("cpu"),"real")
         if is_audio:
