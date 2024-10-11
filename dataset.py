@@ -12,7 +12,6 @@ import os
 from tqdm import tqdm
 import random
 import pandas as pd
-from model import AE
 from function import loadModel, load_audio
 from torch.nn.utils.rnn import pad_sequence
 
