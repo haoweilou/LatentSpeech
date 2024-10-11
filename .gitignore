@@ -1,3 +1,4 @@
 LJSpeech/
 latent/
 model/
+__pycache__/
