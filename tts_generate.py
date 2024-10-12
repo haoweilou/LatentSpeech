@@ -67,29 +67,28 @@ for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
     break
     
 
-# from function import phone_to_phone_idx,hanzi_to_pinyin
-# hanzi = "好好学习天天向上"
-# pinyin = hanzi_to_pinyin(hanzi)
-# print(pinyin)
+from function import phone_to_phone_idx,hanzi_to_pinyin
+hanzi = "好好学习天天向上"
+pinyin = hanzi_to_pinyin(hanzi)
+print(pinyin)
 # # pinyin = ["la1","la2","la3","la4","la5"]
-# phone_idx,tone = phone_to_phone_idx(pinyin)
+phone_idx,tone = phone_to_phone_idx(pinyin)
 # print(phone_idx,tone)
-# d = 10
-# duration = torch.tensor([[d for _ in range(len(phone_idx))]]).to(device)
-# phone_mask = torch.tensor([[0 for _ in range(len(phone_idx))]]).to(device)
-# phone_idx = torch.tensor([phone_idx]).to(device)
-# tone = torch.tensor([tone]).to(device)
-# hidden_mask = torch.tensor([[0 for _ in range(1024)]]).to(device)
+d = 10
+duration = torch.tensor([[d for _ in range(len(phone_idx))]]).to(device)
+phone_mask = torch.tensor([[0 for _ in range(len(phone_idx))]]).to(device)
+phone_idx = torch.tensor([phone_idx]).to(device)
+tone = torch.tensor([tone]).to(device)
+hidden_mask = torch.tensor([[0 for _ in range(1024)]]).to(device)
 
-# src_lens = torch.tensor([phone_idx.shape[-1]]).to(device)
-# mel_lens = torch.tensor([d*phone_idx.shape[-1]]).to(device)
-# y_pred,log_l_pred,mel_masks = tts_model(phone_idx,tone,src_lens=src_lens,
-#     mel_lens=mel_lens,
-#     # duration_target = duration,
-#     max_mel_len=config["max_seq_len"])
-# duration_rounded = torch.clamp((torch.round(torch.exp(log_l_pred) - 1) * 1),min=1,)
-# print(duration_rounded[0],sep="\n")
-# print(y_pred.shape)
-# audio = hidden_to_audio(y_pred).detach().cpu()[0]
-# save_audio(audio,48000,f"test","./sample/")
+src_lens = torch.tensor([phone_idx.shape[-1]]).to(device)
+mel_lens = torch.tensor([d*phone_idx.shape[-1]]).to(device)
+y_pred,log_l_pred,mel_masks = tts_model(phone_idx,tone,src_lens=src_lens,
+    mel_lens=mel_lens,
+    # duration_target = duration,
+    max_mel_len=config["max_seq_len"])
+duration_rounded = torch.clamp((torch.round(torch.exp(log_l_pred) - 1) * 1),min=1,)
+print(duration_rounded[0],sep="\n")
+audio = hidden_to_audio(y_pred).detach().cpu()[0]
+save_audio(audio,48000,f"xuexi","./sample/")
     
