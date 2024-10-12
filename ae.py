@@ -465,6 +465,15 @@ class VQAE_Audio(nn.Module):
         # z_q, vq_loss, _ = self.vq_layer(z)
         return z_q, vq_loss, mb_audio
     
+    def decode_inference(self,z):
+        z_q = z.permute(0, 2, 1)#height, width,channel
+        # z = torch.reshape(z,(b,embed,h*w))
+        z_q, _, _ = self.vq_layer(z_q)#height, width, channel
+        z_q = z_q.permute(0, 2, 1)#channel, height, width
+        audio = self.decode(z_q)
+        audio = self.pqmf.inverse(audio)
+        return audio
+
     def equal_size(self,a:torch.Tensor,b:torch.Tensor):
         min_size = min(a.shape[-1],b.shape[-1])
         a_truncated = a[..., :min_size]  # Keep all dimensions except truncate last dimension

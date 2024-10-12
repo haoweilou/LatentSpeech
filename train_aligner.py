@@ -28,7 +28,7 @@ model_name = "Alinger"
 
 loss_log = pd.DataFrame({"ctc_loss":[]})
 
-bakertext = BakerText(start=0,end=10000)
+bakertext = BakerText(normalize=False,start=0,end=10000)
 bakeraudio = BakerAudio(start=0,end=10000)
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
@@ -46,7 +46,7 @@ CTCLoss = nn.CTCLoss()
 #train aligner first 
 loss_log = pd.DataFrame({"ctc_loss":[]})
 
-for epoch in range(501):
+for epoch in range(3001):
     CTCLoss_ = 0
     for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
         optimizer.zero_grad()
@@ -65,5 +65,9 @@ for epoch in range(501):
     print(f"epoch: {epoch} CTC_Loss: {CTCLoss_/len(loader):.03f}")
     loss_log.loc[len(loss_log.index)] = [CTCLoss_/len(loader)]
     loss_log.to_csv(f"./log/loss_{model_name}")
-    if epoch % 50 == 0:
+    if epoch % 200 == 0:
         saveModel(aligner,f"aligner_{epoch}",root=f"./model/")
+    if epoch > 0:
+        new_lr = learning_rate(step=epoch)
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = new_lr

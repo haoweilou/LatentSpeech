@@ -95,5 +95,3 @@ for epoch in range(301):
         new_lr = learning_rate(step=epoch)
         for param_group in optimizer.param_groups:
             param_group['lr'] = new_lr
-
-
