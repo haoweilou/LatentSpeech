@@ -50,7 +50,7 @@ with open("./save/cache/phoneme.json","r") as f:
 
 C = len(phoneme_set)+1  #Number of Phoneme Class, include blank, 87+1=88
 aligner = SpeechRecognitionModel(input_dim=80,output_dim=C).to(device)
-aligner = loadModel(aligner,"aligner_500","./model")
+aligner = loadModel(aligner,"aligner_3000","./model")
 
 num_epoch = 301
 for epoch in range(301):
