@@ -28,8 +28,8 @@ model_name = "Alinger"
 
 loss_log = pd.DataFrame({"ctc_loss":[]})
 
-bakertext = BakerText(normalize=False,start=0,end=10000)
-bakeraudio = BakerAudio(start=0,end=10000)
+bakertext = BakerText(normalize=False,start=0,end=1000)
+bakeraudio = BakerAudio(start=0,end=1000)
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
     text_batch = [torch.stack([item[i] for item in text_batch]) for i in range(len(text_batch[0]))]
@@ -54,7 +54,6 @@ for epoch in range(3001):
         with torch.no_grad():
             audio = audio_batch.to(device)
             melspec = spec_transform(audio).squeeze(1).permute(0,2,1)
-        optimizer.zero_grad()
         real_outputs = aligner(melspec)  # [batch_size, seq_len, num_phonemes]
         real_outputs = real_outputs.log_softmax(2).transpose(0, 1) # [seq_len, batch_size, num_phonemes]
         loss = CTCLoss(real_outputs, x, mel_lens, src_lens)
@@ -67,7 +66,7 @@ for epoch in range(3001):
     loss_log.to_csv(f"./log/loss_{model_name}")
     if epoch % 200 == 0:
         saveModel(aligner,f"aligner_{epoch}",root=f"./model/")
-    if epoch > 0:
-        new_lr = learning_rate(step=epoch)
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = new_lr
+    # if epoch > 0:
+    #     new_lr = learning_rate(step=epoch)
+    #     for param_group in optimizer.param_groups:
+    #         param_group['lr'] = new_lr

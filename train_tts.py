@@ -27,8 +27,8 @@ loss_func = FastSpeechLoss()
 
 lr = learning_rate()
 
-bakertext = BakerText(normalize=False,start=0,end=2000)
-bakeraudio = BakerAudio(start=0,end=2000)
+bakertext = BakerText(normalize=False,start=0,end=1000)
+bakeraudio = BakerAudio(start=0,end=1000)
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
     text_batch = [torch.stack([item[i] for item in text_batch]) for i in range(len(text_batch[0]))]
@@ -50,7 +50,7 @@ with open("./save/cache/phoneme.json","r") as f:
 
 C = len(phoneme_set)+1  #Number of Phoneme Class, include blank, 87+1=88
 aligner = SpeechRecognitionModel(input_dim=80,output_dim=C).to(device)
-aligner = loadModel(aligner,"aligner_3000","./model")
+aligner = loadModel(aligner,"aligner_800","./model")
 
 num_epoch = 301
 for epoch in range(301):
@@ -59,19 +59,19 @@ for epoch in range(301):
     duration_loss_ = 0
     for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
         optimizer.zero_grad()
-        x,s,_,src_lens,mel_lens = [tensor.to('cuda') for tensor in text_batch]
+        x,s,l,src_lens,mel_lens = [tensor.to('cuda') for tensor in text_batch]
         with torch.no_grad():
             audio = audio_batch.to(device)
             latent_r = vqae.encode_inference(audio).permute(0,2,1)
             melspec = spec_transform(audio).squeeze(1).permute(0,2,1)
-            dilation_size = 4
-            outputs = aligner(melspec).log_softmax(2)  # [batch_size, seq_len, num_phonemes]
-            outputs = torch.argmax(outputs,dim=2) # [batch_size, melspec length
-            outputs = [collapse_and_duration(i) for i in outputs] 
-            l = pad_sequence([torch.tensor(i) for i in outputs],batch_first=True,padding_value=0).to(device) 
-            l = torch.ceil(l/dilation_size).int()
-            padd_size = x.shape[-1] - l.shape[-1]
-            if padd_size > 0: l = F.pad(l,(0,padd_size), "constant", 0)
+            # dilation_size = 4
+            # outputs = aligner(melspec).log_softmax(2)  # [batch_size, seq_len, num_phonemes]
+            # outputs = torch.argmax(outputs,dim=2) # [batch_size, melspec length
+            # outputs = [collapse_and_duration(i) for i in outputs] 
+            # l = pad_sequence([torch.tensor(i) for i in outputs],batch_first=True,padding_value=0).to(device) 
+            # l = torch.ceil(l/dilation_size).int()
+            # padd_size = x.shape[-1] - l.shape[-1]
+            # if padd_size > 0: l = F.pad(l,(0,padd_size), "constant", 0)
 
 
         max_src_len = x.shape[1]

@@ -22,6 +22,7 @@ audio_fake,audio_loss,vq_loss = vqae(audio)
 print(audio_fake.shape)
 z_q,_,_ = vqae.encode(audio)
 # z_q = z_q.permute(0, 2, 3, 1)
+print(z_q.shape)
 z_q = z_q.permute(0, 2, 1)
 z_q_flatten = z_q.reshape(-1, 16).detach().cpu()
 codebook = vqae.vq_layer.embed.detach().cpu().T

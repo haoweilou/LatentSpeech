@@ -40,8 +40,9 @@ tts_model = StyleSpeech(config).to(device)
 tts_model = loadModel(tts_model,"StyleSpeech_300","./model/")
 index = 0
 for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
-    x,s,_,src_lens,mel_lens = [tensor.to('cuda') for tensor in text_batch]
-
+    x,s,l,src_lens,mel_lens = [tensor.to('cuda') for tensor in text_batch]
+    print(l,torch.sum(l,dim=1))
+    break
 
     max_mel_len = 256
     phonemes = x                #batch size, melspec length, feature dim
@@ -55,6 +56,7 @@ for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
         max_mel_len=max_mel_len)
     # print(y_pred.shape,log_l_pred.shape,x.shape)
     duration_rounded = torch.clamp((torch.round(torch.exp(log_l_pred) - 1) * 1),min=1,)
+    print(duration_rounded)
     # print(duration_rounded[0],l[0],x[0],sep="\n")
     # save_audio(pred_audio,48000,f"{4000+index}","./sample/")
     for i in range(64):
