@@ -28,8 +28,8 @@ model_name = "Alinger"
 
 loss_log = pd.DataFrame({"ctc_loss":[]})
 
-bakertext = BakerText(normalize=False,start=0,end=1000)
-bakeraudio = BakerAudio(start=0,end=1000)
+bakertext = BakerText(normalize=False,start=0,end=5000)
+bakeraudio = BakerAudio(start=0,end=5000)
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
     text_batch = [torch.stack([item[i] for item in text_batch]) for i in range(len(text_batch[0]))]
@@ -40,7 +40,7 @@ loader = torch.utils.data.DataLoader(dataset=list(zip(bakertext, bakeraudio)), c
 
 aligner = SpeechRecognitionModel(input_dim=feature_dim,output_dim=C).to(device)
 optimizer = optim.Adam(aligner.parameters(), betas=(0.9,0.98),eps=1e-9,lr=0.001)
-spec_transform = torchaudio.transforms.MelSpectrogram(sample_rate=48*1000, n_fft=400,win_length=400,hop_length=240,n_mels=80).to(device)
+spec_transform = torchaudio.transforms.MelSpectrogram(sample_rate=48*1000, n_fft=2048 ,win_length=2048 ,hop_length=960,n_mels=80).to(device)
 
 CTCLoss = nn.CTCLoss()
 #train aligner first 
@@ -66,7 +66,3 @@ for epoch in range(3001):
     loss_log.to_csv(f"./log/loss_{model_name}")
     if epoch % 200 == 0:
         saveModel(aligner,f"aligner_{epoch}",root=f"./model/")
-    # if epoch > 0:
-    #     new_lr = learning_rate(step=epoch)
-    #     for param_group in optimizer.param_groups:
-    #         param_group['lr'] = new_lr

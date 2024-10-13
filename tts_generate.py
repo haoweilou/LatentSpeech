@@ -37,12 +37,11 @@ loader = torch.utils.data.DataLoader(dataset=list(zip(bakertext, bakeraudio)), c
 
 tts_model = StyleSpeech(config).to(device)
 
-tts_model = loadModel(tts_model,"StyleSpeech_300","./model/")
+tts_model = loadModel(tts_model,"StyleSpeech_200","./model/")
 index = 0
 for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
     x,s,l,src_lens,mel_lens = [tensor.to('cuda') for tensor in text_batch]
-    print(l,torch.sum(l,dim=1))
-    break
+    
 
     max_mel_len = 256
     phonemes = x                #batch size, melspec length, feature dim
@@ -70,7 +69,7 @@ for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
     
 
 from function import phone_to_phone_idx,hanzi_to_pinyin
-hanzi = "好好学习天天向上"
+hanzi = "你是年少的欢喜喜欢的少年是你"
 pinyin = hanzi_to_pinyin(hanzi)
 print(pinyin)
 # # pinyin = ["la1","la2","la3","la4","la5"]
@@ -79,7 +78,7 @@ phone_idx,tone = phone_to_phone_idx(pinyin)
 d = 10
 duration = torch.tensor([[d for _ in range(len(phone_idx))]]).to(device)
 phone_mask = torch.tensor([[0 for _ in range(len(phone_idx))]]).to(device)
-phone_idx = torch.tensor([phone_idx]).to(device)
+phone_idx = torch.tensor([phone_idx]).to(device)  
 tone = torch.tensor([tone]).to(device)
 hidden_mask = torch.tensor([[0 for _ in range(1024)]]).to(device)
 
