@@ -52,7 +52,7 @@ C = len(phoneme_set)+1  #Number of Phoneme Class, include blank, 87+1=88
 aligner = SpeechRecognitionModel(input_dim=80,output_dim=C).to(device)
 aligner = loadModel(aligner,"aligner_800","./model")
 
-num_epoch = 301
+num_epoch = 501
 for epoch in range(301):
     total_loss = 0
     mse_loss_ = 0
@@ -85,7 +85,7 @@ for epoch in range(301):
         loss.backward()
         optimizer.step()
         torch.nn.utils.clip_grad_norm_(tts_model.parameters(), max_norm=1.0)
-    break
+
     print(f"Epoch: {epoch} MSE Loss: {mse_loss_/len(loader):.03f} Duration Loss: {duration_loss_/len(loader):.03f} Total: {total_loss/len(loader):.03f}")
     if epoch % 50 == 0:
         saveModel(tts_model,f"{modelname}_{epoch}","./model/")
