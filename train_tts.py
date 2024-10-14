@@ -27,8 +27,8 @@ loss_func = FastSpeechLoss()
 
 lr = learning_rate()
 
-bakertext = BakerText(normalize=False,start=0,end=1000,path="L:/baker/")
-bakeraudio = BakerAudio(start=0,end=1000,path="L:/baker/")
+bakertext = BakerText(normalize=False,start=0,end=1000)
+bakeraudio = BakerAudio(start=0,end=1000)
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
     text_batch = [torch.stack([item[i] for item in text_batch]) for i in range(len(text_batch[0]))]
@@ -43,14 +43,14 @@ loss_log = pd.DataFrame({"total_loss":[],"mse_loss":[],"duration_loss":[]})
 vqae = VQAE_Audio(params,64,2048).to(device)
 vqae = loadModel(vqae,f"vqae_audio","./model/")
 
-spec_transform = torchaudio.transforms.MelSpectrogram(sample_rate=48*1000, n_fft=400,win_length=400,hop_length=240,n_mels=80).to(device)
+spec_transform = torchaudio.transforms.MelSpectrogram(sample_rate=48*1000, n_fft=2048 ,win_length=2048 ,hop_length=960,n_mels=80).to(device)
 
 with open("./save/cache/phoneme.json","r") as f: 
     phoneme_set = json.loads(f.read())["phoneme"]
 
 C = len(phoneme_set)+1  #Number of Phoneme Class, include blank, 87+1=88
 aligner = SpeechRecognitionModel(input_dim=80,output_dim=C).to(device)
-aligner = loadModel(aligner,"aligner_800","./model")
+aligner = loadModel(aligner,"aligner_3000","./model")
 
 num_epoch = 501
 for epoch in range(301):
@@ -69,7 +69,8 @@ for epoch in range(301):
             outputs = torch.argmax(outputs,dim=2) # [batch_size, melspec length
             outputs = [collapse_and_duration(i) for i in outputs] 
             l = pad_sequence([torch.tensor(i) for i in outputs],batch_first=True,padding_value=0).to(device) 
-            l = torch.ceil(l/dilation_size).int()
+    
+            # l = torch.ceil(l/dilation_size).int()
             padd_size = x.shape[-1] - l.shape[-1]
             if padd_size > 0: l = F.pad(l,(0,padd_size), "constant", 0)
 

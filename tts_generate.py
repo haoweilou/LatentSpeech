@@ -69,7 +69,7 @@ for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
     
 
 from function import phone_to_phone_idx,hanzi_to_pinyin
-hanzi = "你是年少的欢喜喜欢的少年是你"
+hanzi = "南宁市民主路小学教育集团举办纪念中国少年先锋队建队七十五周年主题队日活动"
 pinyin = hanzi_to_pinyin(hanzi)
 print(pinyin)
 # # pinyin = ["la1","la2","la3","la4","la5"]
