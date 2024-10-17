@@ -15,17 +15,19 @@ from torch.utils.data import DataLoader
 # model_name = "vqae"
 # vqae = VQAE(params).to(device)
 
-num = 500
-model_name = "vqae_audio"
-embed_dim = 32
-num_embeddings=1024
+num = 50
+model_name = "vqae_audio_2T"
+# embed_dim = 32
+# num_embeddings=1024
+embed_dim=64
+num_embeddings=2048
 vqae = VQAE_Audio(params,embed_dim,num_embeddings=num_embeddings).to(device)
 vqae = loadModel(vqae,f"{model_name}_{num}","./model/")
 
 from sklearn.decomposition import PCA
 pca = PCA(n_components=2)
 # model = VQAESeq(params,embed_dim=16).to(device)
-dataset = BakerAudio(0,10,"D:/baker/")
+dataset = BakerAudio(0,10,"L:/baker/")
 # dataset = LJSpeechAudio(0,13100,"L:/LJSpeech/")
 loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
 i = 0

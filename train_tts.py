@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from tts import StyleSpeech,FastSpeechLoss
+from tts import StyleSpeech,FastSpeechLoss,SpecAdapter
 from dataset import BakerAudio,BakerText
 import math
 from tts_config import config
@@ -16,13 +16,18 @@ from alinger import SpeechRecognitionModel
 import json
 from function import collapse_and_duration
 from torch.nn.utils.rnn import pad_sequence
-
+spec = True
 def learning_rate(d_model=256,step=1,warmup_steps=400):
     return (1/math.sqrt(d_model)) * min(1/math.sqrt(step),step*warmup_steps**-1.5)
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-tts_model = StyleSpeech(config,embed_dim=64).to(device)
-optimizer = optim.Adam(tts_model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=learning_rate())
+if spec:
+    tts_model = StyleSpeech(config,embed_dim=20).to(device)
+    adapter = SpecAdapter().to(device)
+    optimizer = optim.Adam(list(tts_model.parameters())+list(adapter.parameters()), betas=(0.9,0.98),eps=1e-9,lr=learning_rate())
+else:
+    tts_model = StyleSpeech(config,embed_dim=64).to(device)
+    optimizer = optim.Adam(tts_model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=learning_rate())
 loss_func = FastSpeechLoss()
 
 lr = learning_rate()
@@ -38,22 +43,27 @@ def collate_fn(batch):
 loader = torch.utils.data.DataLoader(dataset=list(zip(bakertext, bakeraudio)), collate_fn=collate_fn, batch_size=64, shuffle=True)
 
 modelname = "StyleSpeech"
+if spec: modelname += "_spec"
 loss_log = pd.DataFrame({"total_loss":[],"mse_loss":[],"duration_loss":[]})
 
-vqae = VQAE_Audio(params,64,2048).to(device)
-vqae = loadModel(vqae,f"vqae_audio","./model/")
+
+if spec:
+    vqae = VQAE(params,embed_dim=64).to(device)
+    vqae = loadModel(vqae,f"vqae","./model/")
+else:
+    vqae = VQAE_Audio(params,64,2048).to(device)
+    vqae = loadModel(vqae,f"vqae_audio","./model/")
 
 spec_transform = torchaudio.transforms.MelSpectrogram(sample_rate=48*1000, n_fft=2048 ,win_length=2048 ,hop_length=960,n_mels=80).to(device)
 
 with open("./save/cache/phoneme.json","r") as f: 
     phoneme_set = json.loads(f.read())["phoneme"]
-
 C = len(phoneme_set)+1  #Number of Phoneme Class, include blank, 87+1=88
 aligner = SpeechRecognitionModel(input_dim=80,output_dim=C).to(device)
 aligner = loadModel(aligner,"aligner_3000","./model")
 
 num_epoch = 501
-for epoch in range(301):
+for epoch in range(801):
     total_loss = 0
     mse_loss_ = 0
     duration_loss_ = 0
@@ -62,7 +72,10 @@ for epoch in range(301):
         x,s,l,src_lens,mel_lens = [tensor.to('cuda') for tensor in text_batch]
         with torch.no_grad():
             audio = audio_batch.to(device)
-            latent_r = vqae.encode_inference(audio).permute(0,2,1)
+            if spec: 
+                latent_r = vqae.encode_inference(audio)
+            else: 
+                latent_r = vqae.encode_inference(audio).permute(0,2,1)
             melspec = spec_transform(audio).squeeze(1).permute(0,2,1)
             dilation_size = 4
             outputs = aligner(melspec).log_softmax(2)  # [batch_size, seq_len, num_phonemes]
@@ -74,10 +87,14 @@ for epoch in range(301):
             padd_size = x.shape[-1] - l.shape[-1]
             if padd_size > 0: l = F.pad(l,(0,padd_size), "constant", 0)
 
-
         max_src_len = x.shape[1]
-        max_mel_len = latent_r.shape[1]
+        max_mel_len = latent_r.shape[-1]
         latent_f,log_l_pred,mel_masks = tts_model(x,s,src_lens=src_lens,mel_lens=mel_lens,duration_target=l,max_mel_len=max_mel_len)
+        if spec: 
+            latent_f = latent_f.unsqueeze(1)
+            latent_f = adapter(latent_f)
+            latent_f = latent_f.permute(0,1,3,2)
+
         l = l[:,:log_l_pred.shape[-1]]
         loss,mse_loss,duration_loss = loss_func(latent_r,latent_f,log_l_pred,l,mel_masks,device=device)
         total_loss += loss.item()
@@ -88,8 +105,9 @@ for epoch in range(301):
         torch.nn.utils.clip_grad_norm_(tts_model.parameters(), max_norm=1.0)
 
     print(f"Epoch: {epoch} MSE Loss: {mse_loss_/len(loader):.03f} Duration Loss: {duration_loss_/len(loader):.03f} Total: {total_loss/len(loader):.03f}")
-    if epoch % 50 == 0:
+    if epoch % 100 == 0:
         saveModel(tts_model,f"{modelname}_{epoch}","./model/")
+        if spec: saveModel(adapter,f"adapter_{epoch}","./model/")
     loss_log.loc[len(loss_log.index)] = [total_loss/len(loader),mse_loss_/len(loader),duration_loss_/len(loader)]
     loss_log.to_csv(f"./log/loss_{modelname}")
     if epoch > 0:

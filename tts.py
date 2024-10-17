@@ -383,6 +383,23 @@ class Decoder(nn.Module):
             dec_output, dec_slf_attn = dec_layer(dec_output, mask=mask, slf_attn_mask=slf_attn_mask)
         return dec_output,mask
 
+class SpecAdapter(nn.Module):
+    """Some Information about SpecAdapter"""
+    def __init__(self,embed_dim=64):
+        super(SpecAdapter, self).__init__()
+        self.upsampler = model = nn.Sequential(
+            nn.Conv2d(1, 4, kernel_size=3, stride=1, padding=1),  # Changed kernel size to 3, padding 1
+            nn.BatchNorm2d(4),
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(4, 16, kernel_size=3, stride=1, padding=1),  # Changed kernel size to 3, padding 1
+            nn.BatchNorm2d(16),
+            nn.Conv2d(16, 64, kernel_size=3, stride=1, padding=1),  # Changed kernel size to 3, padding 1
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.2)
+        )
+
+    def forward(self, x):
+        return self.upsampler(x)
 
 class StyleSpeech(nn.Module):
     """Some Information about StyleSpeech"""

@@ -14,12 +14,15 @@ from params import params
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 is_audio = True
-embed_dim = 64
 if is_audio:
-    num_embeddings=2048
+    embed_dim = 128
+    num_embeddings=1024
     num = 120
-    model_name = "vqae_audio"
-    model = VQAE_Audio(params,embed_dim,num_embeddings).to(device)
+    # model_name = "vqae_audio"
+    model_name = "vqae_audio_2T_100"
+    model = VQAE_Audio(params,embed_dim=128,num_embeddings=1024).to(device)
+
+    # model = VQAE_Audio(params,embed_dim,num_embeddings).to(device)
 else:
     num = 200
     model_name = "vqae"

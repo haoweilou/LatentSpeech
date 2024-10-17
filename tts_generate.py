@@ -37,11 +37,11 @@ loader = torch.utils.data.DataLoader(dataset=list(zip(bakertext, bakeraudio)), c
 
 tts_model = StyleSpeech(config).to(device)
 
-tts_model = loadModel(tts_model,"StyleSpeech_200","./model/")
+tts_model = loadModel(tts_model,"StyleSpeech_300","./model/")
 index = 0
 for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
     x,s,l,src_lens,mel_lens = [tensor.to('cuda') for tensor in text_batch]
-    
+    print(x.shape,s.shape,l.shape,src_lens.shape,mel_lens.shape)
 
     max_mel_len = 256
     phonemes = x                #batch size, melspec length, feature dim
