@@ -26,8 +26,7 @@ if spec:
     adapter = SpecAdapter().to(device)
     optimizer = optim.Adam(list(tts_model.parameters())+list(adapter.parameters()), betas=(0.9,0.98),eps=1e-9,lr=learning_rate())
 else:
-    config["max_seq_len"] = 2048
-    tts_model = StyleSpeech(config,embed_dim=128).to(device)
+    tts_model = StyleSpeech(config,embed_dim=64).to(device)
     optimizer = optim.Adam(tts_model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=learning_rate())
 loss_func = FastSpeechLoss()
 
@@ -52,9 +51,8 @@ if spec:
     vqae = VQAE(params,embed_dim=64).to(device)
     vqae = loadModel(vqae,f"vqae","./model/")
 else:
-    vqae = VQAE_Audio(params,128,4096).to(device)
-    # vqae = loadModel(vqae,f"vqae_audio","./model/")
-    vqae = loadModel(vqae,f"vqae_audio_2T_200","./model/")
+    vqae = VQAE_Audio(params,64,2048).to(device)
+    vqae = loadModel(vqae,f"vqae_audio","./model/")
 
 spec_transform = torchaudio.transforms.MelSpectrogram(sample_rate=48*1000, n_fft=2048 ,win_length=2048 ,hop_length=960,n_mels=80).to(device)
 
@@ -62,10 +60,10 @@ with open("./save/cache/phoneme.json","r") as f:
     phoneme_set = json.loads(f.read())["phoneme"]
 C = len(phoneme_set)+1  #Number of Phoneme Class, include blank, 87+1=88
 aligner = SpeechRecognitionModel(input_dim=80,output_dim=C).to(device)
-aligner = loadModel(aligner,"aligner_3000","./model")
+aligner = loadModel(aligner,"aligner","./model")
 
-num_epoch = 501
-for epoch in range(801):
+num_epoch = 301
+for epoch in range(num_epoch):
     total_loss = 0
     mse_loss_ = 0
     duration_loss_ = 0

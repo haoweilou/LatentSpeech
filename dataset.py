@@ -108,7 +108,7 @@ class BakerText(torch.utils.data.Dataset):
         self.x = pad_sequence(self.pho2idx(x_raw,self.pho_dict,normalize=normalize),batch_first=True,padding_value=0)
         self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in s_raw],batch_first=True,padding_value=0)
         # self.l = pad_sequence([torch.tensor(self.phonemes[k]["mel_len"]) for k in self.keys],batch_first=True,padding_value=0)
-        self.l = pad_sequence([torch.ceil(torch.tensor(self.phonemes[k]["pho_len"])/4800/0.005) for k in self.keys],batch_first=True,padding_value=0)
+        self.l = pad_sequence([torch.ceil(torch.tensor(self.phonemes[k]["pho_len"])/4800/0.02) for k in self.keys],batch_first=True,padding_value=0)
 
 
     def pho2idx(self,phonemes,pho_list:list,normalize=True):

@@ -400,13 +400,13 @@ class VQAE_Audio(nn.Module):
             nn.Conv1d(params.n_band*4,params.n_band*8,kernel_size=5*2+1,stride=5,padding=5),
             nn.BatchNorm1d(params.n_band*8),
             nn.LeakyReLU(0.2),
-            nn.Conv1d(params.n_band*8,params.n_band*16,kernel_size=3*2+1,stride=3,padding=3),
+            nn.Conv1d(params.n_band*8,params.n_band*16,kernel_size=4*2+1,stride=4,padding=4),
             nn.BatchNorm1d(params.n_band*16),
             nn.LeakyReLU(0.2),
-            # nn.Conv1d(params.n_band*16,params.n_band*32,kernel_size=2*2+1,stride=2,padding=2),
-            # nn.BatchNorm1d(params.n_band*32),
-            # nn.LeakyReLU(0.2),
-            nn.Conv1d(params.n_band*16,embed_dim,1),
+            nn.Conv1d(params.n_band*16,params.n_band*32,kernel_size=3*2+1,stride=3,padding=3),
+            nn.BatchNorm1d(params.n_band*32),
+            nn.LeakyReLU(0.2),
+            nn.Conv1d(params.n_band*32,embed_dim,1),
             nn.BatchNorm1d(embed_dim),
             nn.LeakyReLU(0.2),
         )
@@ -416,21 +416,18 @@ class VQAE_Audio(nn.Module):
         self.vq_layer = Quantize(embed_dim,num_embeddings)
         
         self.decoder = nn.Sequential(
-            nn.Conv1d(embed_dim,params.n_band*16,1),
+            nn.Conv1d(embed_dim,params.n_band*32,1),
+            nn.BatchNorm1d(params.n_band*32),
+            nn.LeakyReLU(0.2),
+            nn.ConvTranspose1d(params.n_band*32,params.n_band*16,kernel_size=3*2,stride=3,padding=3//2),
             nn.BatchNorm1d(params.n_band*16),
             nn.LeakyReLU(0.2),
-            # nn.ConvTranspose1d(params.n_band*16,params.n_band*16,kernel_size=2*2,stride=2,padding=2//2),
-            # nn.BatchNorm1d(params.n_band*16),
-            # nn.LeakyReLU(0.2),
-            nn.ConvTranspose1d(params.n_band*16,params.n_band*8,kernel_size=3*2,stride=3,padding=3//2),
+            nn.ConvTranspose1d(params.n_band*16,params.n_band*8,kernel_size=4*2,stride=4,padding=4//2),
             nn.BatchNorm1d(params.n_band*8),
             nn.LeakyReLU(0.2),
             nn.ConvTranspose1d(params.n_band*8,params.n_band*4,kernel_size=5*2,stride=5,padding=5//2),
             nn.BatchNorm1d(params.n_band*4),
-            nn.LeakyReLU(0.2),
-            # nn.ConvTranspose1d(params.n_band*4,params.n_band*4,kernel_size=1,stride=1),
-            # nn.BatchNorm1d(params.n_band*4),
-            # nn.LeakyReLU(0.2),
+            nn.LeakyReLU(0.2)
         )
         self.decoder.apply(weights_init)
         self.wave_gen = nn.Conv1d(params.n_band*4,params.n_band,7,padding=3)
