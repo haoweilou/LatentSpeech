@@ -16,11 +16,11 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 is_audio = True
 if is_audio:
     embed_dim = 128
-    num_embeddings=1024
+    num_embeddings=4096
     num = 120
     # model_name = "vqae_audio"
-    model_name = "vqae_audio_2T_100"
-    model = VQAE_Audio(params,embed_dim=128,num_embeddings=1024).to(device)
+    model_name = "vqae_audio_2T_200"
+    model = VQAE_Audio(params,embed_dim=embed_dim,num_embeddings=num_embeddings).to(device)
 
     # model = VQAE_Audio(params,embed_dim,num_embeddings).to(device)
 else:
@@ -48,7 +48,9 @@ with torch.no_grad():
             a,_,_ = model(audio)
             draw_wave(a[0][0].to("cpu"),"fake_audio")
             save_audio(a[0].to("cpu"),48000,f"fake_audio")
-            z_q = model.encode_inference(a).permute(0, 2, 1).view(-1,embed_dim)
+            z_q = model.encode_inference(a)
+            print(z_q.shape)
+            z_q = z_q.permute(0, 2, 1).view(-1,embed_dim)
         else:
             a,_,_,_ = model(audio)
             draw_wave(a[0][0].to("cpu"),"fake_spec")
@@ -60,7 +62,7 @@ with torch.no_grad():
         print(z_q.shape,codebook.shape,combined.shape)
         combined = pca.fit_transform(combined.cpu())
         if is_audio:
-            draw_dot([combined[:-2048],combined[-2048:]],["z_q","codebook"],name="z_q and codebook-audio")
+            draw_dot([combined[:-num_embeddings],combined[-num_embeddings:]],["z_q","codebook"],name="z_q and codebook-audio")
         else:
             draw_dot([combined[:-512],combined[-512:]],["z_q","codebook"],name="z_q and codebook-spec")
         break

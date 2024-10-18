@@ -16,7 +16,7 @@ from alinger import SpeechRecognitionModel
 import json
 from function import collapse_and_duration
 from torch.nn.utils.rnn import pad_sequence
-spec = True
+spec = False
 def learning_rate(d_model=256,step=1,warmup_steps=400):
     return (1/math.sqrt(d_model)) * min(1/math.sqrt(step),step*warmup_steps**-1.5)
 
@@ -26,7 +26,8 @@ if spec:
     adapter = SpecAdapter().to(device)
     optimizer = optim.Adam(list(tts_model.parameters())+list(adapter.parameters()), betas=(0.9,0.98),eps=1e-9,lr=learning_rate())
 else:
-    tts_model = StyleSpeech(config,embed_dim=64).to(device)
+    config["max_seq_len"] = 2048
+    tts_model = StyleSpeech(config,embed_dim=128).to(device)
     optimizer = optim.Adam(tts_model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=learning_rate())
 loss_func = FastSpeechLoss()
 
@@ -40,7 +41,7 @@ def collate_fn(batch):
     audio_batch = bakeraudio.collate(audio_batch)
     return text_batch, audio_batch
 
-loader = torch.utils.data.DataLoader(dataset=list(zip(bakertext, bakeraudio)), collate_fn=collate_fn, batch_size=64, shuffle=True)
+loader = torch.utils.data.DataLoader(dataset=list(zip(bakertext, bakeraudio)), collate_fn=collate_fn, batch_size=32, shuffle=True)
 
 modelname = "StyleSpeech"
 if spec: modelname += "_spec"
@@ -51,8 +52,9 @@ if spec:
     vqae = VQAE(params,embed_dim=64).to(device)
     vqae = loadModel(vqae,f"vqae","./model/")
 else:
-    vqae = VQAE_Audio(params,64,2048).to(device)
-    vqae = loadModel(vqae,f"vqae_audio","./model/")
+    vqae = VQAE_Audio(params,128,4096).to(device)
+    # vqae = loadModel(vqae,f"vqae_audio","./model/")
+    vqae = loadModel(vqae,f"vqae_audio_2T_200","./model/")
 
 spec_transform = torchaudio.transforms.MelSpectrogram(sample_rate=48*1000, n_fft=2048 ,win_length=2048 ,hop_length=960,n_mels=80).to(device)
 
@@ -76,19 +78,20 @@ for epoch in range(801):
                 latent_r = vqae.encode_inference(audio)
             else: 
                 latent_r = vqae.encode_inference(audio).permute(0,2,1)
-            melspec = spec_transform(audio).squeeze(1).permute(0,2,1)
-            dilation_size = 4
-            outputs = aligner(melspec).log_softmax(2)  # [batch_size, seq_len, num_phonemes]
-            outputs = torch.argmax(outputs,dim=2) # [batch_size, melspec length
-            outputs = [collapse_and_duration(i) for i in outputs] 
-            l = pad_sequence([torch.tensor(i) for i in outputs],batch_first=True,padding_value=0).to(device) 
+            # melspec = spec_transform(audio).squeeze(1).permute(0,2,1)
+            # outputs = aligner(melspec).log_softmax(2)  # [batch_size, seq_len, num_phonemes]
+            # outputs = torch.argmax(outputs,dim=2) # [batch_size, melspec length
+            # outputs = [collapse_and_duration(i) for i in outputs] 
+            # l = pad_sequence([torch.tensor(i) for i in outputs],batch_first=True,padding_value=0).to(device) 
     
-            # l = torch.ceil(l/dilation_size).int()
             padd_size = x.shape[-1] - l.shape[-1]
             if padd_size > 0: l = F.pad(l,(0,padd_size), "constant", 0)
 
         max_src_len = x.shape[1]
-        max_mel_len = latent_r.shape[-1]
+        if spec: 
+            max_mel_len = latent_r.shape[-1]
+        else:
+            max_mel_len = latent_r.shape[1]
         latent_f,log_l_pred,mel_masks = tts_model(x,s,src_lens=src_lens,mel_lens=mel_lens,duration_target=l,max_mel_len=max_mel_len)
         if spec: 
             latent_f = latent_f.unsqueeze(1)

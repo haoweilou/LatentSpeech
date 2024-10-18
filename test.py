@@ -16,7 +16,7 @@ from function import loadModel,save_audio,draw_wave,draw_heatmap,draw_dot
 from sklearn.decomposition import PCA
 pca = PCA(n_components=2)
 audio = torch.randn(2,1,48000).to(device)
-spec_transform = torchaudio.transforms.MelSpectrogram(sample_rate=48*1000, n_fft=2048 ,win_length=2048 ,hop_length=960,n_mels=80).to(device)
+spec_transform = torchaudio.transforms.MelSpectrogram(sample_rate=48*1000, n_fft=2048 ,win_length=2048 ,hop_length=240,n_mels=80).to(device)
 melspec = spec_transform(audio)
 
 print(melspec.shape)
