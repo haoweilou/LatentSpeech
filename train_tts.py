@@ -32,8 +32,8 @@ loss_func = FastSpeechLoss()
 
 lr = learning_rate()
 
-bakertext = BakerText(normalize=False,start=0,end=1000)
-bakeraudio = BakerAudio(start=0,end=1000)
+bakertext = BakerText(normalize=False,start=0,end=5000)
+bakeraudio = BakerAudio(start=0,end=5000)
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
     text_batch = [torch.stack([item[i] for item in text_batch]) for i in range(len(text_batch[0]))]

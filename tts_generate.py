@@ -36,7 +36,7 @@ def collate_fn(batch):
 loader = torch.utils.data.DataLoader(dataset=list(zip(bakertext, bakeraudio)), collate_fn=collate_fn, batch_size=64, shuffle=False)
 tts_model = StyleSpeech(config,embed_dim=64).to(device)
 
-tts_model = loadModel(tts_model,"StyleSpeech_300","./model/")
+tts_model = loadModel(tts_model,"StyleSpeech_200","./model/")
 index = 0
 for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
     x,s,l,src_lens,mel_lens = [tensor.to('cuda') for tensor in text_batch]
@@ -68,7 +68,7 @@ for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
     
 
 from function import phone_to_phone_idx,hanzi_to_pinyin
-hanzi = "娄皓维是小猪"
+hanzi = "大大的小笨猪"
 pinyin = hanzi_to_pinyin(hanzi)
 print(pinyin)
 # # pinyin = ["la1","la2","la3","la4","la5"]
