@@ -32,8 +32,8 @@ loss_func = FastSpeechLoss()
 
 lr = learning_rate()
 
-bakertext = BakerText(normalize=False,start=0,end=5000)
-bakeraudio = BakerAudio(start=0,end=5000)
+bakertext = BakerText(normalize=False,start=0,end=9000)
+bakeraudio = BakerAudio(start=0,end=9000)
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
     text_batch = [torch.stack([item[i] for item in text_batch]) for i in range(len(text_batch[0]))]
@@ -62,7 +62,7 @@ C = len(phoneme_set)+1  #Number of Phoneme Class, include blank, 87+1=88
 aligner = SpeechRecognitionModel(input_dim=80,output_dim=C).to(device)
 aligner = loadModel(aligner,"aligner","./model")
 
-num_epoch = 301
+num_epoch = 501
 for epoch in range(num_epoch):
     total_loss = 0
     mse_loss_ = 0
@@ -76,11 +76,11 @@ for epoch in range(num_epoch):
                 latent_r = vqae.encode_inference(audio)
             else: 
                 latent_r = vqae.encode_inference(audio).permute(0,2,1)
-            # melspec = spec_transform(audio).squeeze(1).permute(0,2,1)
-            # outputs = aligner(melspec).log_softmax(2)  # [batch_size, seq_len, num_phonemes]
-            # outputs = torch.argmax(outputs,dim=2) # [batch_size, melspec length
-            # outputs = [collapse_and_duration(i) for i in outputs] 
-            # l = pad_sequence([torch.tensor(i) for i in outputs],batch_first=True,padding_value=0).to(device) 
+            melspec = spec_transform(audio).squeeze(1).permute(0,2,1)
+            outputs = aligner(melspec).log_softmax(2)  # [batch_size, seq_len, num_phonemes]
+            outputs = torch.argmax(outputs,dim=2) # [batch_size, melspec length
+            outputs = [collapse_and_duration(i) for i in outputs] 
+            l = pad_sequence([torch.tensor(i) for i in outputs],batch_first=True,padding_value=0).to(device) 
     
             padd_size = x.shape[-1] - l.shape[-1]
             if padd_size > 0: l = F.pad(l,(0,padd_size), "constant", 0)
@@ -106,7 +106,7 @@ for epoch in range(num_epoch):
         torch.nn.utils.clip_grad_norm_(tts_model.parameters(), max_norm=1.0)
 
     print(f"Epoch: {epoch} MSE Loss: {mse_loss_/len(loader):.03f} Duration Loss: {duration_loss_/len(loader):.03f} Total: {total_loss/len(loader):.03f}")
-    if epoch % 100 == 0:
+    if epoch % 50 == 0:
         saveModel(tts_model,f"{modelname}_{epoch}","./model/")
         if spec: saveModel(adapter,f"adapter_{epoch}","./model/")
     loss_log.loc[len(loss_log.index)] = [total_loss/len(loader),mse_loss_/len(loader),duration_loss_/len(loader)]

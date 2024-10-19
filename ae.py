@@ -490,3 +490,48 @@ class VQAE_Audio(nn.Module):
 
         audio_f = self.pqmf.inverse(audio_f)
         return audio_f,audio_loss,vq_loss
+    
+
+    def pqmf_output(self,audio):
+        z_q, _, _ = self.encode(audio)
+        return self.decode(z_q)
+    
+
+class CausalConv1d(torch.nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, dilation):
+        super(CausalConv1d, self).__init__()
+        self.padding = (kernel_size - 1) * dilation  # Padding to ensure causality
+        self.conv = torch.nn.Conv1d(in_channels, out_channels, kernel_size, 
+                                    padding=self.padding, dilation=dilation)
+
+    def forward(self, x):
+        x = self.conv(x)
+        return x[:, :, :-self.padding]  # Remove the extra padded timesteps to ensure output is causal
+
+class ResidualBlock(torch.nn.Module):
+    def __init__(self, in_channels, residual_channels, dilation, kernel_size=2):
+        super(ResidualBlock, self).__init__()
+        self.causal_conv = CausalConv1d(in_channels, residual_channels, kernel_size, dilation)
+        self.res_conv = torch.nn.Conv1d(residual_channels, in_channels, 1)  # 1x1 conv for residual connection
+        self.skip_conv = torch.nn.Conv1d(residual_channels, in_channels, 1)  # Optional skip connection
+
+    def forward(self, x):
+        out = torch.tanh(self.causal_conv(x))
+        res = self.res_conv(out)
+        x = x[:, :, -res.size(2):]  # Adjust for padding differences if necessary
+        return res + x  # Correct residual connection
+
+
+class WaveNet(torch.nn.Module):
+    def __init__(self, in_channels=16, residual_channels=32, num_layers=10, kernel_size=2):
+        super(WaveNet, self).__init__()
+        self.dilations = [2**i for i in range(num_layers)]
+        self.residual_blocks = torch.nn.ModuleList(
+            [ResidualBlock(in_channels, residual_channels, dilation, kernel_size) for dilation in self.dilations]
+        )
+        self.final_conv = torch.nn.Conv1d(in_channels, in_channels, kernel_size=1)  # Final output layer
+
+    def forward(self, x):
+        for layer in self.residual_blocks:
+            x = layer(x)
+        return self.final_conv(x)

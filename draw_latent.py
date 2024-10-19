@@ -1,4 +1,4 @@
-from ae import VQAE_Audio,VQAE
+from ae import VQAE_Audio,VQAE,WaveNet
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -31,7 +31,8 @@ from sklearn.decomposition import PCA
 pca = PCA(n_components=2)
 # model = loadModel(model,f"{model_name}_{num}","./model/")
 model = loadModel(model,f"{model_name}","./model/")
-
+finetune = WaveNet().to(device)
+finetune = loadModel(finetune,"vqae_audio_finetune_300","./model/")
 dataset = BakerAudio(0,10,"L:/baker/")
 # dataset = LJSpeechAudio(0,10,"L:/LJSpeech/")
 loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
@@ -44,12 +45,14 @@ with torch.no_grad():
         
         draw_wave(audio[0][0].to("cpu"),"real")
         if is_audio:
-            a,_,_ = model(audio)
+            z_q = model.encode_inference(audio)
+            print(z_q.shape)
+            z_q = z_q.permute(0, 2, 1).view(-1,embed_dim) 
+            pqmf_audio = model.pqmf_output(audio)
+            pqmf_audio = finetune(pqmf_audio)
+            a = model.pqmf.inverse(pqmf_audio)
             draw_wave(a[0][0].to("cpu"),"fake_audio")
             save_audio(a[0].to("cpu"),48000,f"fake_audio")
-            z_q = model.encode_inference(a)
-            print(z_q.shape)
-            z_q = z_q.permute(0, 2, 1).view(-1,embed_dim)
         else:
             a,_,_,_ = model(audio)
             draw_wave(a[0][0].to("cpu"),"fake_spec")
