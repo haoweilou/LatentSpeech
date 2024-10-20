@@ -1,21 +1,23 @@
 import matplotlib.pyplot as plt
 import pandas as pd 
-dataframe = pd.read_csv("./log/loss_vqae_audio")
+dataframe = pd.read_csv("./log/loss_vqae_audio_finetune")
 # Extract the 'epochs' column from the DataFrame
-epochs = dataframe.iloc[:,0]
 
-# Similarly, extract other relevant columns from the DataFrame
-total_loss = dataframe['total_loss']
-audio_loss = dataframe['audio_loss']
+# Extract the 'epochs' column from the DataFrame
+epochs = dataframe.iloc[:, 0]
 
-vq_loss = dataframe['vq_loss']
+# Find all columns that end with "loss"
+loss_columns = [col for col in dataframe.columns if col.endswith('loss')]
 
+# Print all loss columns
+print("Loss Columns: ", loss_columns)
+
+# Create the plot
 plt.figure(figsize=(10, 6))
-plt.plot(epochs, total_loss, label='Total Loss')
-plt.plot(epochs, audio_loss, label='Audio Loss')
-# spectral_loss = dataframe['spectral_loss']
-# plt.plot(epochs, spectral_loss, label='Spectral Loss')
-plt.plot(epochs, vq_loss, label='VQ Loss')
+
+# Plot each loss column
+for loss_col in loss_columns:
+    plt.plot(epochs, dataframe[loss_col], label=loss_col)
 
 plt.xlabel('Epoch')
 plt.ylabel('Loss')

@@ -36,59 +36,61 @@ def collate_fn(batch):
 loader = torch.utils.data.DataLoader(dataset=list(zip(bakertext, bakeraudio)), collate_fn=collate_fn, batch_size=64, shuffle=False)
 tts_model = StyleSpeech(config,embed_dim=64).to(device)
 
-tts_model = loadModel(tts_model,"StyleSpeech_100","./model/")
-index = 0
-for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
-    x,s,l,src_lens,mel_lens = [tensor.to('cuda') for tensor in text_batch]
-    print(x.shape,s.shape,l.shape,src_lens.shape,mel_lens.shape)
+for epoch in range(400,501,50):
 
-    max_mel_len = 256*2
-    phonemes = x                #batch size, melspec length, feature dim
-    phoneme_lengths = src_lens  #batch size, length of melspec
+    tts_model = loadModel(tts_model,f"StyleSpeech_{epoch}","./model/")
+    index = 0
+    for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
+        x,s,l,src_lens,mel_lens = [tensor.to('cuda') for tensor in text_batch]
+        print(x.shape,s.shape,l.shape,src_lens.shape,mel_lens.shape)
 
-    hidden_lengths = mel_lens   #batch size, length of phoneme sequence
+        max_mel_len = 256*2
+        phonemes = x                #batch size, melspec length, feature dim
+        phoneme_lengths = src_lens  #batch size, length of melspec
 
-    y_pred,log_l_pred,mel_masks = tts_model(
-        x,s,src_lens=src_lens,
-        mel_lens=mel_lens,
-        max_mel_len=max_mel_len)
-    # print(y_pred.shape,log_l_pred.shape,x.shape)
-    duration_rounded = torch.clamp((torch.round(torch.exp(log_l_pred) - 1) * 1),min=1,)
-    print(duration_rounded)
-    # print(duration_rounded[0],l[0],x[0],sep="\n")
-    # save_audio(pred_audio,48000,f"{4000+index}","./sample/")
-    for i in range(64):
-        print(y_pred.shape)
-        pred_audio = hidden_to_audio(y_pred[i,:,:].unsqueeze(0))
-        pred_audio = pred_audio.detach().cpu()
-        save_audio(pred_audio[0],48000,f"{4000+index}","./sample/")
-        index += 1
+        hidden_lengths = mel_lens   #batch size, length of phoneme sequence
+
+        y_pred,log_l_pred,mel_masks = tts_model(
+            x,s,src_lens=src_lens,
+            mel_lens=mel_lens,
+            max_mel_len=max_mel_len)
+        # print(y_pred.shape,log_l_pred.shape,x.shape)
+        duration_rounded = torch.clamp((torch.round(torch.exp(log_l_pred) - 1) * 1),min=1,)
+        print(duration_rounded)
+        # print(duration_rounded[0],l[0],x[0],sep="\n")
+        # save_audio(pred_audio,48000,f"{4000+index}","./sample/")
+        for _ in range(64):
+            print(y_pred.shape)
+            pred_audio = hidden_to_audio(y_pred[i,:,:].unsqueeze(0))
+            pred_audio = pred_audio.detach().cpu()
+            save_audio(pred_audio[0],48000,f"{epoch}","./sample/")
+            index += 1
+            break
         break
-    break
-    
+        
 
-from function import phone_to_phone_idx,hanzi_to_pinyin
-hanzi = "娄皓维今天学习了吗"
-pinyin = hanzi_to_pinyin(hanzi)
-print(pinyin)
-# # pinyin = ["la1","la2","la3","la4","la5"]
-phone_idx,tone = phone_to_phone_idx(pinyin)
-# print(phone_idx,tone)
-d = 10
-duration = torch.tensor([[d for _ in range(len(phone_idx))]]).to(device)
-phone_mask = torch.tensor([[0 for _ in range(len(phone_idx))]]).to(device)
-phone_idx = torch.tensor([phone_idx]).to(device)  
-tone = torch.tensor([tone]).to(device)
-hidden_mask = torch.tensor([[0 for _ in range(1024)]]).to(device)
+    from function import phone_to_phone_idx,hanzi_to_pinyin
+    hanzi = "如果有一天我老无所依请把我留在在这春天里"
+    pinyin = hanzi_to_pinyin(hanzi)
+    print(pinyin)
+    # # pinyin = ["la1","la2","la3","la4","la5"]
+    phone_idx,tone = phone_to_phone_idx(pinyin)
+    # print(phone_idx,tone)
+    d = 10
+    duration = torch.tensor([[d for _ in range(len(phone_idx))]]).to(device)
+    phone_mask = torch.tensor([[0 for _ in range(len(phone_idx))]]).to(device)
+    phone_idx = torch.tensor([phone_idx]).to(device)  
+    tone = torch.tensor([tone]).to(device)
+    hidden_mask = torch.tensor([[0 for _ in range(1024)]]).to(device)
 
-src_lens = torch.tensor([phone_idx.shape[-1]]).to(device)
-mel_lens = torch.tensor([d*phone_idx.shape[-1]]).to(device)
-y_pred,log_l_pred,mel_masks = tts_model(phone_idx,tone,src_lens=src_lens,
-    mel_lens=mel_lens,
-    # duration_target = duration,
-    max_mel_len=config["max_seq_len"])
-duration_rounded = torch.clamp((torch.round(torch.exp(log_l_pred) - 1) * 1),min=1,)
-print(duration_rounded[0],sep="\n")
-audio = hidden_to_audio(y_pred).detach().cpu()[0]
-save_audio(audio,48000,f"custom","./sample/")
+    src_lens = torch.tensor([phone_idx.shape[-1]]).to(device)
+    mel_lens = torch.tensor([d*phone_idx.shape[-1]]).to(device)
+    y_pred,log_l_pred,mel_masks = tts_model(phone_idx,tone,src_lens=src_lens,
+        mel_lens=mel_lens,
+        # duration_target = duration,
+        max_mel_len=config["max_seq_len"])
+    duration_rounded = torch.clamp((torch.round(torch.exp(log_l_pred) - 1) * 1),min=1,)
+    print(duration_rounded[0],sep="\n")
+    audio = hidden_to_audio(y_pred).detach().cpu()[0]
+    save_audio(audio,48000,f"custom_{epoch}","./sample/")
     

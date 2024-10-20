@@ -8,7 +8,7 @@ scp haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/LatentSpeech/model/ae_40
 
 scp dataset.py trainae_2set haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/
 # Copy Model
-scp haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/LatentSpeech/model/vqaeinit_1000.pth ./model/
+scp haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/LatentSpeech/model/StyleSpeech_450.pth ./model/
 
 # copy log
 scp haoweilou@drstrange.cse.unsw.edu.au:/home/haoweilou/LatentSpeech/log/loss_vqaeinit ./log

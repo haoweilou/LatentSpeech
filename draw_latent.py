@@ -32,39 +32,45 @@ pca = PCA(n_components=2)
 # model = loadModel(model,f"{model_name}_{num}","./model/")
 model = loadModel(model,f"{model_name}","./model/")
 finetune = WaveNet().to(device)
-finetune = loadModel(finetune,"vqae_audio_finetune_300","./model/")
 dataset = BakerAudio(0,10,"L:/baker/")
 # dataset = LJSpeechAudio(0,10,"L:/LJSpeech/")
 loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
-with torch.no_grad():
-    for audio in tqdm(loader):
-        audio = audio.to(device)
-        time_steps = audio.shape[-1]
-        pad_amount = (16 - (time_steps % 16)) % 16
-        if pad_amount > 0:audio = F.pad(audio, (0, pad_amount))
-        
-        draw_wave(audio[0][0].to("cpu"),"real")
-        if is_audio:
-            z_q = model.encode_inference(audio)
-            print(z_q.shape)
-            z_q = z_q.permute(0, 2, 1).view(-1,embed_dim) 
-            pqmf_audio = model.pqmf_output(audio)
-            pqmf_audio = finetune(pqmf_audio)
-            a = model.pqmf.inverse(pqmf_audio)
-            draw_wave(a[0][0].to("cpu"),"fake_audio")
-            save_audio(a[0].to("cpu"),48000,f"fake_audio")
-        else:
-            a,_,_,_ = model(audio)
-            draw_wave(a[0][0].to("cpu"),"fake_spec")
-            save_audio(a[0].to("cpu"),48000,f"fake_spec")
-            z_q = model.encode_inference(a).permute(0, 2, 3, 1).reshape(-1,embed_dim)
-        print(a.shape)
-        codebook = model.vq_layer.embed.permute(1,0)
-        combined = torch.concat((z_q,codebook),dim=0)
-        print(z_q.shape,codebook.shape,combined.shape)
-        combined = pca.fit_transform(combined.cpu())
-        if is_audio:
-            draw_dot([combined[:-num_embeddings],combined[-num_embeddings:]],["z_q","codebook"],name="z_q and codebook-audio")
-        else:
-            draw_dot([combined[:-512],combined[-512:]],["z_q","codebook"],name="z_q and codebook-spec")
-        break
+for epoch in range(0,501,50):
+    finetune = loadModel(finetune,f"vqae_audio_finetune_{epoch}","./model/")
+    with torch.no_grad():
+        for audio in tqdm(loader):
+            audio = audio.to(device)
+            time_steps = audio.shape[-1]
+            pad_amount = (16 - (time_steps % 16)) % 16
+            if pad_amount > 0:audio = F.pad(audio, (0, pad_amount))
+            
+            draw_wave(audio[0][0].to("cpu"),"real")
+            save_audio(audio[0].to("cpu"),48000,"real")
+            if is_audio:
+                z_q = model.encode_inference(audio)
+                print(z_q.shape)
+                z_q = z_q.permute(0, 2, 1).view(-1,embed_dim) 
+                pqmf_audio = model.pqmf_output(audio)
+                a = model.pqmf.inverse(pqmf_audio)
+                draw_wave(a[0][0].to("cpu"),f"no_finetune")
+                save_audio(a[0].to("cpu"),48000,f"no_finetune")
+
+                pqmf_audio = finetune(pqmf_audio)
+                a = model.pqmf.inverse(pqmf_audio)
+                draw_wave(a[0][0].to("cpu"),f"fake_audio_{epoch}")
+                save_audio(a[0].to("cpu"),48000,f"fake_audio_{epoch}")
+            else:
+                a,_,_,_ = model(audio)
+                draw_wave(a[0][0].to("cpu"),"fake_spec")
+                save_audio(a[0].to("cpu"),48000,f"fake_spec")
+                z_q = model.encode_inference(a).permute(0, 2, 3, 1).reshape(-1,embed_dim)
+            print(a.shape)
+            codebook = model.vq_layer.embed.permute(1,0)
+            combined = torch.concat((z_q,codebook),dim=0)
+            print(z_q.shape,codebook.shape,combined.shape)
+            combined = pca.fit_transform(combined.cpu())
+            if is_audio:
+                draw_dot([combined[:-num_embeddings],combined[-num_embeddings:]],["z_q","codebook"],name="z_q and codebook-audio")
+            else:
+                draw_dot([combined[:-512],combined[-512:]],["z_q","codebook"],name="z_q and codebook-spec")
+            break

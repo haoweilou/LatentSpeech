@@ -29,11 +29,11 @@ loss_log = pd.DataFrame({"total_loss":[],"audio_loss":[]})
 dataset1 = BakerAudio(0,500)
 dataset2 = LJSpeechAudio(0,500)
 dataset = ConcatDataset([dataset1, dataset2])
-batch_size = 32
+batch_size = 16
 loader = DataLoader(dataset,batch_size=batch_size,collate_fn=dataset1.collate,drop_last=True,shuffle=True)
 epochs = 501
 model_name = "vqae_audio_finetune"
-finetune = WaveNet().to(device)
+finetune = WaveNet(num_layers=20).to(device)
 optimizer = optim.Adam(finetune.parameters(),lr=params.learning_rate)
 spec_transform = torchaudio.transforms.MelSpectrogram(sample_rate=48*1000, n_fft=2048 ,win_length=2048 ,hop_length=960,n_mels=80).to(device)
 
