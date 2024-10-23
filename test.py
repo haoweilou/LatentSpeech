@@ -15,11 +15,17 @@ vqae = VQAE_Audio(params).to(device)
 from function import loadModel,save_audio,draw_wave,draw_heatmap,draw_dot
 from sklearn.decomposition import PCA
 pca = PCA(n_components=2)
-audio = torch.randn(2,1,48000).to(device)
-spec_transform = torchaudio.transforms.MelSpectrogram(sample_rate=48*1000, n_fft=2048 ,win_length=2048 ,hop_length=960,n_mels=80).to(device)
-melspec = spec_transform(audio)
+audio = torch.randn(16,1,48000).to(device)
+from ae import AE
 
-print(melspec.shape)
+model = AE(params).to(device)
+audio_f,audio_loss,vq_loss,spectral_loss = model(audio)
+print(audio_f.shape)
+
+# spec_transform = torchaudio.transforms.MelSpectrogram(sample_rate=48*1000, n_fft=2048 ,win_length=2048 ,hop_length=960,n_mels=80).to(device)
+# melspec = spec_transform(audio)
+
+# print(melspec.shape)
 # out, latent_loss  = vqae(mel)
 # print(out.shape)
 # audio_fake,audio_loss,vq_loss = vqae(audio)

@@ -535,3 +535,127 @@ class WaveNet(torch.nn.Module):
         for layer in self.residual_blocks:
             x = layer(x)
         return self.final_conv(x)
+    
+
+class AE(nn.Module):
+    def __init__(self,params):
+        super().__init__()
+        self.params = params
+        self.spec_distance = AudioDistance(params,params.log_epsilon)
+        self.pqmf = PQMF(100,params.n_band)
+
+        
+        self.melspec_transform = torchaudio.transforms.MelSpectrogram(
+            sample_rate=48*1000, 
+            n_fft=400,
+            win_length=400,
+            hop_length=240,
+            n_mels=80  
+        )
+
+        self.spec_encoder = SpecEncoder(channel=128)
+        self.spec_encoder.apply(weights_init)
+        self.spec_mapper = nn.Conv2d(128,1,1)
+
+        # self.vq_layer = VQEmbedding(512,embed_dim,0.25)
+        self.vq_layer = Quantize(20,512)
+        
+        self.spec_decoder = SpecDecoder(in_channel=1,out_channel=1,channel=128)
+        self.spec_decoder.apply(weights_init)
+        # self.spec_vqae = VQSpecAE(16)
+        
+        self.audio_mapper = nn.Sequential(
+            nn.Conv1d(80,16,1),
+            nn.BatchNorm1d(16),
+            nn.Conv1d(16,16,kernel_size=4,stride=4,padding=0),
+            nn.BatchNorm1d(16)
+        )
+        self.audio_mapper.apply(weights_init)
+
+        self.audio_decoder = nn.Sequential(
+            nn.Conv1d(params.n_band,params.n_band*32,1),
+            nn.BatchNorm1d(params.n_band*32),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*32,params.n_band*16,kernel_size=3*2,stride=3,padding=3//2),
+            nn.BatchNorm1d(params.n_band*16),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*16,params.n_band*8,kernel_size=4*2,stride=4,padding=4//2),
+            nn.BatchNorm1d(params.n_band*8),
+            nn.Tanh(),
+            nn.ConvTranspose1d(params.n_band*8,params.n_band*4,kernel_size=5*2,stride=5,padding=5//2),
+            nn.BatchNorm1d(params.n_band*4),
+            nn.Tanh(),
+        )
+        self.audio_decoder.apply(weights_init)
+        self.wave_gen = nn.Conv1d(params.n_band*4,params.n_band,7,padding=3)
+        self.loud_gen = nn.Conv1d(params.n_band*4,params.n_band,3,1,padding=1)
+        
+    def mod_sigmoid(self,x):
+        return 2 * torch.sigmoid(x)**2.3 + 1e-7
+    
+    def audio_decode(self,x):
+        z_ = self.audio_decoder(x)
+        loud = self.loud_gen(z_)
+        wave = self.wave_gen(z_)
+        x = torch.tanh(wave) *  self.mod_sigmoid(loud)
+        return x
+    
+    
+    def decode_inference(self,z_q,b,embed_dim,H,T):
+        z_q = z_q.transpose(1,2) #Batch,embed_dim,Height/4*T/4
+        z_q = z_q.reshape(b,embed_dim, H , T)#Batch,embed_dim,Height/4*T/4
+        melspec_f = self.spec_decoder(z_q) #Batch,1,80,T
+
+        audio_f = self.audio_mapper(melspec_f.squeeze(1))#Batch,16,A//16
+        audio_f = self.audio_decode(audio_f)#Batch,16,A//16
+        audio = self.pqmf.inverse(audio_f)
+        return audio
+    
+    def equal_size(self,a:torch.Tensor,b:torch.Tensor):
+        min_size = min(a.shape[-1],b.shape[-1])
+        a_truncated = a[..., :min_size]  # Keep all dimensions except truncate last dimension
+        b_truncated = b[..., :min_size]  # Same truncation for b
+        return a_truncated, b_truncated
+
+    def encode_inference(self,x):
+        melspec_r = self.melspec_transform(x)#Batch,1,80,T
+        
+        z = self.spec_encoder(melspec_r) #Batch,128,Height/4,Width/4
+        z = self.spec_mapper(z) #Batch,embed_dim,Height/4,Width/4
+        # b,embed,h,w = z.shape
+        z_q = z.squeeze(1).permute(0,2,1)#height, width,channel
+        # z = torch.reshape(z,(b,embed,h*w))
+        z_q, vq_loss, _ = self.vq_layer(z_q)#height, width, channel
+        z_q = z_q.permute(0,2,1).unsqueeze(1)#channel, height, width
+        return z_q
+
+    def forward(self, x):
+        #x is audio, X:[Batch,A]
+        melspec_r = self.melspec_transform(x)#Batch,1,80,T
+
+        z = self.spec_encoder(melspec_r) #Batch,128,Height/4,Width/4
+        z = self.spec_mapper(z) #Batch,embed_dim,Height/4,Width/4
+        # b,embed,h,w = z.shape
+        z_q = z.squeeze(1).permute(0,2,1) #B, height, width => B, width, height
+        # z = torch.reshape(z,(b,embed,h*w))
+        z_q, vq_loss, _ = self.vq_layer(z_q)#height, width, channel
+        z_q = z_q.permute(0,2,1).unsqueeze(1) #B,C,height,width
+        # z_q = torch.reshape(z_q,(b,embed,h,w))#Batch size, embed_dim, 20, 100
+        melspec_f = self.spec_decoder(z_q)
+
+        # melspec_f, vq_loss = self.spec_vqae(melspec_r)
+
+        audio_f = self.audio_mapper(melspec_f.squeeze(1))#Batch,16,A//16
+        audio_f = self.audio_decode(audio_f)#Batch,16,A//16
+        audio_r = self.pqmf(x)
+
+        audio_r,audio_f = self.equal_size(audio_r,audio_f)
+        melspec_r,melspec_f = self.equal_size(melspec_r,melspec_f)
+
+        audio_loss = self.spec_distance(audio_r,audio_f)
+        # audio_loss = self.spec_distance(audio_r,audio_r)
+        spectral_loss = F.mse_loss(melspec_r,melspec_f)
+        
+        
+        audio = self.pqmf.inverse(audio_f)
+        return audio,audio_loss,vq_loss,spectral_loss

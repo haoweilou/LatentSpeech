@@ -1,4 +1,4 @@
-from ae import VQAE_Audio,VQAE,WaveNet
+from ae import VQAE_Audio,VQAE,WaveNet,AE
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from params import params
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-is_audio = True
+is_audio = False
 if is_audio:
     embed_dim = 64
     num_embeddings=2048
@@ -23,20 +23,22 @@ if is_audio:
 
     # model = VQAE_Audio(params,embed_dim,num_embeddings).to(device)
 else:
-    num = 200
-    model_name = "vqae"
-    model = VQAE(params,embed_dim=64).to(device)
+    num = 300
+    embed_dim = 20
+    model_name = f"qae_{num}"
+    # model = VQAE(params,embed_dim=64).to(device)
+    model = AE(params).to(device)
 from sklearn.decomposition import PCA
 
 pca = PCA(n_components=2)
 # model = loadModel(model,f"{model_name}_{num}","./model/")
 model = loadModel(model,f"{model_name}","./model/")
-finetune = WaveNet().to(device)
+# finetune = WaveNet(num_layers=20).to(device)
 dataset = BakerAudio(0,10,"L:/baker/")
 # dataset = LJSpeechAudio(0,10,"L:/LJSpeech/")
 loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
-for epoch in range(0,501,50):
-    finetune = loadModel(finetune,f"vqae_audio_finetune_{epoch}","./model/")
+for epoch in range(180,200,50):
+    # finetune = loadModel(finetune,f"vqae_audio_finetune_{epoch}","./model/")
     with torch.no_grad():
         for audio in tqdm(loader):
             audio = audio.to(device)
@@ -55,7 +57,7 @@ for epoch in range(0,501,50):
                 draw_wave(a[0][0].to("cpu"),f"no_finetune")
                 save_audio(a[0].to("cpu"),48000,f"no_finetune")
 
-                pqmf_audio = finetune(pqmf_audio)
+                # pqmf_audio = finetune(pqmf_audio)
                 a = model.pqmf.inverse(pqmf_audio)
                 draw_wave(a[0][0].to("cpu"),f"fake_audio_{epoch}")
                 save_audio(a[0].to("cpu"),48000,f"fake_audio_{epoch}")
@@ -63,7 +65,7 @@ for epoch in range(0,501,50):
                 a,_,_,_ = model(audio)
                 draw_wave(a[0][0].to("cpu"),"fake_spec")
                 save_audio(a[0].to("cpu"),48000,f"fake_spec")
-                z_q = model.encode_inference(a).permute(0, 2, 3, 1).reshape(-1,embed_dim)
+                z_q = model.encode_inference(a).squeeze(1).permute(0, 2, 1).reshape(-1,embed_dim)
             print(a.shape)
             codebook = model.vq_layer.embed.permute(1,0)
             combined = torch.concat((z_q,codebook),dim=0)

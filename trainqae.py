@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader,ConcatDataset
 from params import params
 from dataset import BakerAudio,LJSpeechAudio
 # from model import VQAESeq
-from ae import VQAE
+from ae import AE
 from tqdm import tqdm
 from function import saveModel,loadModel
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -20,20 +20,20 @@ num_embeddings=256
 embedding_dim=80
 commitment_cost=0.25
 
-model = VQAE(params,embed_dim=1).to(device)
+model = AE(params).to(device)
 
 optimizer = optim.Adam(model.parameters(),lr=params.learning_rate)
 loss_log = pd.DataFrame({"total_loss":[],"spectral_loss":[],"vq_loss":[],"audio_loss":[]})
-dataset1 = BakerAudio(0,1000)
+dataset1 = BakerAudio(0,9000)
 # dataset2 = LJSpeechAudio(0,10000)
 # dataset = ConcatDataset([dataset1, dataset2])
 dataset = ConcatDataset([dataset1])
 
-batch_size = 16
+batch_size = 32
 # loader = DataLoader(dataset,batch_size=params.batch_size,collate_fn=dataset.collate,drop_last=True,shuffle=True)
 loader = DataLoader(dataset,batch_size=batch_size,collate_fn=dataset1.collate,drop_last=True,shuffle=True)
-epochs = 201
-model_name = "vqae_1c"
+epochs = 501
+model_name = "qae"
 
 for epoch in range(epochs):
     loss_val = 0
@@ -58,7 +58,7 @@ for epoch in range(epochs):
     
     print(f"Epoch: {epoch} Audio Loss: {audio_loss_/len(loader):.03f} Spectral Loss: {spectral_loss_/len(loader):.03f} VQ Loss: {vq_loss_/len(loader):.03f} Total: {loss_val/len(loader):.03f}")
     
-    if epoch % 10 == 0:
+    if epoch % 50 == 0:
         saveModel(model,f"{model_name}_{epoch}","./model/")
 
     loss_log.loc[len(loss_log.index)] = [loss_val/len(loader),spectral_loss_/len(loader),vq_loss_/len(loader),audio_loss_/len(loader)]
