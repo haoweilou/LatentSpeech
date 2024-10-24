@@ -22,7 +22,7 @@ def learning_rate(d_model=256,step=1,warmup_steps=400):
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 if spec:
-    tts_model = StyleSpeech(config,embed_dim=20).to(device)
+    tts_model = StyleSpeech(config,embed_dim=80).to(device)
     optimizer = optim.Adam(tts_model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=learning_rate())
 else:
     tts_model = StyleSpeech(config,embed_dim=64).to(device)
@@ -31,6 +31,7 @@ loss_func = FastSpeechLoss()
 
 lr = learning_rate()
 file_path = "/home/haoweilou/scratch/baker/"
+# file_path = "L:/baker/"
 bakertext = BakerText(normalize=False,start=0,end=1000,path=file_path)
 bakeraudio = BakerAudio(start=0,end=1000,path=file_path)
 def collate_fn(batch):
@@ -49,7 +50,7 @@ loss_log = pd.DataFrame({"total_loss":[],"mse_loss":[],"duration_loss":[]})
 if spec:
     # vqae = VQAE(params,embed_dim=64).to(device)
     vqae = AE(params).to(device)
-    vqae = loadModel(vqae,f"qae_300","./model/")
+    vqae = loadModel(vqae,f"qae_150","./model/")
 else:
     vqae = VQAE_Audio(params,64,2048).to(device)
     vqae = loadModel(vqae,f"vqae_audio","./model/")
@@ -73,7 +74,9 @@ for epoch in range(num_epoch):
         with torch.no_grad():
             audio = audio_batch.to(device)
             if spec: 
-                latent_r = vqae.encode_inference(audio).squeeze(1).permute(0,2,1)
+                latent_r,b,t = vqae.encode_inference(audio)
+                latent_r = latent_r.reshape(b,vqae.num_channel,t,20) #C,T,Feature_Dim
+             
             else: 
                 latent_r = vqae.encode_inference(audio).permute(0,2,1)
             melspec = spec_transform(audio).squeeze(1).permute(0,2,1)
@@ -86,11 +89,14 @@ for epoch in range(num_epoch):
             if padd_size > 0: l = F.pad(l,(0,padd_size), "constant", 0)
         max_src_len = x.shape[1]
         if spec: 
-            max_mel_len = latent_r.shape[1]
+            # max_mel_len = latent_r.shape[1]
+            max_mel_len = t
         else:
             max_mel_len = latent_r.shape[1]
         latent_f,log_l_pred,mel_masks = tts_model(x,s,src_lens=src_lens,mel_lens=mel_lens,duration_target=l,max_mel_len=max_mel_len)
- 
+        #latent_f = [T,featDim*channel]
+        latent_f = latent_f.reshape(b,t,20,vqae.num_channel) # [T,featDim,channel]
+        latent_f = latent_f.permute(0,3,1,2) #[channel,T,featDim]
 
         l = l[:,:log_l_pred.shape[-1]]
         loss,mse_loss,duration_loss = loss_func(latent_r,latent_f,log_l_pred,l,mel_masks,device=device)

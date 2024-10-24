@@ -34,9 +34,10 @@ def collate_fn(batch):
     return text_batch, audio_batch
 
 loader = torch.utils.data.DataLoader(dataset=list(zip(bakertext, bakeraudio)), collate_fn=collate_fn, batch_size=64, shuffle=False)
-tts_model = StyleSpeech(config,embed_dim=20).to(device)
+tts_model = StyleSpeech(config,embed_dim=80).to(device)
 
-for epoch in range(350,400,50):
+# for epoch in range(350,400,50):
+for epoch in [100]:
 
     tts_model = loadModel(tts_model,f"StyleSpeech_spec_{epoch}","./model/")
     index = 0
@@ -70,7 +71,7 @@ for epoch in range(350,400,50):
         
 
     from function import phone_to_phone_idx,hanzi_to_pinyin
-    hanzi = "卡尔普配上外孙玩滑梯"
+    hanzi = "如果有一天我老无所依请把我留在在这时光里娄皓维爱学习爱小宝"
     pinyin = hanzi_to_pinyin(hanzi)
     print(pinyin)
     # # pinyin = ["la1","la2","la3","la4","la5"]

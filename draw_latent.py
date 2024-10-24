@@ -23,7 +23,7 @@ if is_audio:
 
     # model = VQAE_Audio(params,embed_dim,num_embeddings).to(device)
 else:
-    num = 300
+    num = 150
     embed_dim = 20
     model_name = f"qae_{num}"
     # model = VQAE(params,embed_dim=64).to(device)
@@ -50,7 +50,6 @@ for epoch in range(180,200,50):
             save_audio(audio[0].to("cpu"),48000,"real")
             if is_audio:
                 z_q = model.encode_inference(audio)
-                print(z_q.shape)
                 z_q = z_q.permute(0, 2, 1).view(-1,embed_dim) 
                 pqmf_audio = model.pqmf_output(audio)
                 a = model.pqmf.inverse(pqmf_audio)
@@ -65,7 +64,8 @@ for epoch in range(180,200,50):
                 a,_,_,_ = model(audio)
                 draw_wave(a[0][0].to("cpu"),"fake_spec")
                 save_audio(a[0].to("cpu"),48000,f"fake_spec")
-                z_q = model.encode_inference(a).squeeze(1).permute(0, 2, 1).reshape(-1,embed_dim)
+                z_q,b,t = model.encode_inference(a)
+                print(z_q.shape)
             print(a.shape)
             codebook = model.vq_layer.embed.permute(1,0)
             combined = torch.concat((z_q,codebook),dim=0)
