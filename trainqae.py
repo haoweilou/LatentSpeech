@@ -24,7 +24,7 @@ model = AE(params).to(device)
 
 optimizer = optim.Adam(model.parameters(),lr=params.learning_rate)
 loss_log = pd.DataFrame({"total_loss":[],"spectral_loss":[],"vq_loss":[],"audio_loss":[]})
-dataset1 = BakerAudio(0,9000)
+dataset1 = BakerAudio(0,2000)
 # dataset2 = LJSpeechAudio(0,10000)
 # dataset = ConcatDataset([dataset1, dataset2])
 dataset = ConcatDataset([dataset1])

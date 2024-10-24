@@ -175,11 +175,13 @@ def hanzi_to_pinyin(hanzi_string):
 
 def hidden_to_audio(hidden):
     #hidden: B,T,C
-    from ae import VQAE_Audio
+    from ae import VQAE_Audio,AE
     from params import params
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-    ae = VQAE_Audio(params,64,2048).to(device)
-    ae = loadModel(ae,"vqae_audio","./model")
+    ae = AE(params).to(device)
+    ae = loadModel(ae,"qae_300","./model")
+    # ae = VQAE_Audio(params,64,2048).to(device)
+    # ae = loadModel(ae,"vqae_audio","./model")
     hidden = torch.transpose(hidden,1,2)[0,:,:].unsqueeze(0)
     audio = ae.decode_inference(hidden)
     audio = torch.clamp(audio, -1.0, 1.0)

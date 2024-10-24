@@ -21,6 +21,8 @@ from ae import AE
 model = AE(params).to(device)
 audio_f,audio_loss,vq_loss,spectral_loss = model(audio)
 print(audio_f.shape)
+audio_x = model.inerence(audio)
+print(audio_x.shape)
 
 # spec_transform = torchaudio.transforms.MelSpectrogram(sample_rate=48*1000, n_fft=2048 ,win_length=2048 ,hop_length=960,n_mels=80).to(device)
 # melspec = spec_transform(audio)

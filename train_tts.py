@@ -9,31 +9,30 @@ from tts_config import config
 from tqdm import tqdm
 import pandas as pd
 import torchaudio
-from ae import VQAE_Audio,VQAE
+from ae import VQAE_Audio,VQAE,AE
 from params import params
 from function import loadModel,saveModel
 from alinger import SpeechRecognitionModel
 import json
 from function import collapse_and_duration
 from torch.nn.utils.rnn import pad_sequence
-spec = False
+spec = True
 def learning_rate(d_model=256,step=1,warmup_steps=400):
     return (1/math.sqrt(d_model)) * min(1/math.sqrt(step),step*warmup_steps**-1.5)
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 if spec:
     tts_model = StyleSpeech(config,embed_dim=20).to(device)
-    adapter = SpecAdapter().to(device)
-    optimizer = optim.Adam(list(tts_model.parameters())+list(adapter.parameters()), betas=(0.9,0.98),eps=1e-9,lr=learning_rate())
+    optimizer = optim.Adam(tts_model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=learning_rate())
 else:
     tts_model = StyleSpeech(config,embed_dim=64).to(device)
     optimizer = optim.Adam(tts_model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=learning_rate())
 loss_func = FastSpeechLoss()
 
 lr = learning_rate()
-
-bakertext = BakerText(normalize=False,start=0,end=9000)
-bakeraudio = BakerAudio(start=0,end=9000)
+file_path = "/home/haoweilou/scratch/baker/"
+bakertext = BakerText(normalize=False,start=0,end=1000,path=file_path)
+bakeraudio = BakerAudio(start=0,end=1000,path=file_path)
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
     text_batch = [torch.stack([item[i] for item in text_batch]) for i in range(len(text_batch[0]))]
@@ -48,8 +47,9 @@ loss_log = pd.DataFrame({"total_loss":[],"mse_loss":[],"duration_loss":[]})
 
 
 if spec:
-    vqae = VQAE(params,embed_dim=64).to(device)
-    vqae = loadModel(vqae,f"vqae","./model/")
+    # vqae = VQAE(params,embed_dim=64).to(device)
+    vqae = AE(params).to(device)
+    vqae = loadModel(vqae,f"qae_300","./model/")
 else:
     vqae = VQAE_Audio(params,64,2048).to(device)
     vqae = loadModel(vqae,f"vqae_audio","./model/")
@@ -73,7 +73,7 @@ for epoch in range(num_epoch):
         with torch.no_grad():
             audio = audio_batch.to(device)
             if spec: 
-                latent_r = vqae.encode_inference(audio)
+                latent_r = vqae.encode_inference(audio).squeeze(1).permute(0,2,1)
             else: 
                 latent_r = vqae.encode_inference(audio).permute(0,2,1)
             melspec = spec_transform(audio).squeeze(1).permute(0,2,1)
@@ -84,17 +84,13 @@ for epoch in range(num_epoch):
     
             padd_size = x.shape[-1] - l.shape[-1]
             if padd_size > 0: l = F.pad(l,(0,padd_size), "constant", 0)
-
         max_src_len = x.shape[1]
         if spec: 
-            max_mel_len = latent_r.shape[-1]
+            max_mel_len = latent_r.shape[1]
         else:
             max_mel_len = latent_r.shape[1]
         latent_f,log_l_pred,mel_masks = tts_model(x,s,src_lens=src_lens,mel_lens=mel_lens,duration_target=l,max_mel_len=max_mel_len)
-        if spec: 
-            latent_f = latent_f.unsqueeze(1)
-            latent_f = adapter(latent_f)
-            latent_f = latent_f.permute(0,1,3,2)
+ 
 
         l = l[:,:log_l_pred.shape[-1]]
         loss,mse_loss,duration_loss = loss_func(latent_r,latent_f,log_l_pred,l,mel_masks,device=device)
@@ -108,7 +104,6 @@ for epoch in range(num_epoch):
     print(f"Epoch: {epoch} MSE Loss: {mse_loss_/len(loader):.03f} Duration Loss: {duration_loss_/len(loader):.03f} Total: {total_loss/len(loader):.03f}")
     if epoch % 50 == 0:
         saveModel(tts_model,f"{modelname}_{epoch}","./model/")
-        if spec: saveModel(adapter,f"adapter_{epoch}","./model/")
     loss_log.loc[len(loss_log.index)] = [total_loss/len(loader),mse_loss_/len(loader),duration_loss_/len(loader)]
     loss_log.to_csv(f"./log/loss_{modelname}")
     if epoch > 0:
