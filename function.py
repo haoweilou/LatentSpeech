@@ -179,15 +179,12 @@ def hidden_to_audio(hidden):
     from params import params
     device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
     ae = AE(params).to(device)
-    ae = loadModel(ae,"qae_150","./model")
+    ae = loadModel(ae,"qae_200","./model")
     # ae = VQAE_Audio(params,64,2048).to(device)
     # ae = loadModel(ae,"vqae_audio","./model")
-    print(hidden.shape)
 
     hidden = hidden.reshape(1,-1,20,ae.num_channel) # [T,featDim,channel]
-    print(hidden.shape)
     hidden = hidden.permute(0,3,1,2)
-    print(hidden.shape)
     # hidden = torch.transpose(hidden,1,2)[0,:,:].unsqueeze(0)
     audio = ae.decode_inference(hidden,1,hidden.shape[2])
     audio = torch.clamp(audio, -1.0, 1.0)

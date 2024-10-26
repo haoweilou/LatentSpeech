@@ -37,7 +37,7 @@ loader = torch.utils.data.DataLoader(dataset=list(zip(bakertext, bakeraudio)), c
 tts_model = StyleSpeech(config,embed_dim=80).to(device)
 
 # for epoch in range(350,400,50):
-for epoch in [100]:
+for epoch in [200]:
 
     tts_model = loadModel(tts_model,f"StyleSpeech_spec_{epoch}","./model/")
     index = 0
@@ -71,7 +71,7 @@ for epoch in [100]:
         
 
     from function import phone_to_phone_idx,hanzi_to_pinyin
-    hanzi = "如果有一天我老无所依请把我留在在这时光里娄皓维爱学习爱小宝"
+    hanzi = "我是语音智能机器人我们喜欢你"
     pinyin = hanzi_to_pinyin(hanzi)
     print(pinyin)
     # # pinyin = ["la1","la2","la3","la4","la5"]

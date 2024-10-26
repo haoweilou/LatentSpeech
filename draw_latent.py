@@ -23,7 +23,7 @@ if is_audio:
 
     # model = VQAE_Audio(params,embed_dim,num_embeddings).to(device)
 else:
-    num = 150
+    num = 200
     embed_dim = 20
     model_name = f"qae_{num}"
     # model = VQAE(params,embed_dim=64).to(device)
