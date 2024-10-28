@@ -638,7 +638,7 @@ class AE(nn.Module):
         audio = self.decode_inference(z_q,b,t)
         audio,x = self.equal_size(audio,x)
         return audio
-
+    
     def forward(self, x):
         #x is audio, X:[Batch,A]
         #encoding stage
@@ -675,3 +675,98 @@ class AE(nn.Module):
         
         audio = self.pqmf.inverse(audio_f)
         return audio,audio_loss,vq_loss,spectral_loss
+    
+
+class VQAE_Module(nn.Module):
+    """Some Information about VQAE_Module"""
+    def __init__(self,channel,embed_dim=64,compress_ratio=[5,4,3]):
+        super(VQAE_Module, self).__init__()
+        encoder_layers = [nn.Conv1d(channel,embed_dim,7,padding=3),nn.BatchNorm1d(embed_dim),nn.LeakyReLU(0.2)]
+        decoder_layers = [nn.LeakyReLU(0.2),nn.BatchNorm1d(channel),nn.Conv1d(embed_dim,channel,1)]
+        for ratio in compress_ratio:
+            encoder_layers += [
+                nn.Conv1d(embed_dim,embed_dim,kernel_size=ratio*2+1,stride=ratio,padding=ratio),
+                nn.BatchNorm1d(embed_dim),
+                nn.LeakyReLU(0.2),
+            ]
+
+            decoder_layers += [
+                nn.LeakyReLU(0.2),
+                nn.BatchNorm1d(embed_dim),
+                nn.ConvTranspose1d(embed_dim,embed_dim,kernel_size=ratio*2,stride=ratio,padding=ratio//2),
+            ]
+        
+        self.vq_layer = Quantize(embed_dim,2048)
+
+        # encoder_layers += [nn.Conv1d(embed_dim,embed_dim,1),nn.BatchNorm1d(embed_dim),nn.LeakyReLU(0.2)]
+        decoder_layers += [nn.LeakyReLU(0.2),nn.BatchNorm1d(embed_dim),nn.Conv1d(embed_dim,embed_dim,1)]
+        decoder_layers = decoder_layers[::-1]
+        self.encoder = nn.Sequential(*encoder_layers)
+        self.decoder = nn.Sequential(*decoder_layers)
+        self.encoder.apply(weights_init)
+        self.decoder.apply(weights_init)
+
+        self.wave_gen = nn.Conv1d(channel,channel,7,padding=3)
+        self.loud_gen = nn.Conv1d(channel,channel,3,1,padding=1)
+        
+    def equal_size(self,a:torch.Tensor,b:torch.Tensor):
+        min_size = min(a.shape[-1],b.shape[-1])
+        a_truncated = a[..., :min_size]  # Keep all dimensions except truncate last dimension
+        b_truncated = b[..., :min_size]  # Same truncation for b
+        return a_truncated, b_truncated
+    
+    def mod_sigmoid(self,x):
+        return 2 * torch.sigmoid(x)**2.3 + 1e-7
+    
+    def encode(self,x):
+        z = self.encoder(x)
+        z = z.permute(0,2,1)#C,T=>T,C
+        z_q,vq_loss,_ = self.vq_layer(z)
+        z_q = z_q.permute(0,2,1)#T,C=>C,T
+        return z_q,vq_loss
+    
+    def decode(self,z,x=None):
+        y = self.decoder(z)
+        if x is not None: x,y = self.equal_size(x,y)
+        
+        loud = self.loud_gen(y)
+        wave = self.wave_gen(y)
+        y = torch.tanh(wave) *  self.mod_sigmoid(loud)
+        return y
+
+    def forward(self, x):
+        z_q,vq_loss = self.encode(x)
+        y = self.decode(z_q,x)
+        return y,vq_loss
+
+class VQAE_Audio2(nn.Module):
+    def __init__(self,params,embed_dim=64):
+        super().__init__()
+        self.params = params
+        self.spec_distance = AudioDistance(params,params.log_epsilon)
+        self.pqmf = PQMF(100,params.n_band)
+        
+        self.level1 = VQAE_Module(params.n_band,embed_dim,compress_ratio=[5,1,1])
+        self.level2 = VQAE_Module(params.n_band,embed_dim,compress_ratio=[5,2,2])
+        self.level3 = VQAE_Module(params.n_band,embed_dim,compress_ratio=[5,4,3])
+       
+    def forward(self, audio):
+        #x is audio, X:[Batch,A]
+        pqmf_audio = self.pqmf(audio)#[1,A]=>[Channel,A]
+        #encoding
+        pqmf_audio_f1,vq_loss1 = self.level1(pqmf_audio)
+        pqmf_audio_f2,vq_loss2 = self.level2(pqmf_audio)
+        pqmf_audio_f3,vq_loss3 = self.level3(pqmf_audio)
+
+        vq_loss = vq_loss1+vq_loss2+vq_loss3
+        audio_loss1 = self.spec_distance(pqmf_audio_f1,pqmf_audio)
+        audio_loss2 = self.spec_distance(pqmf_audio_f2,pqmf_audio)
+        audio_loss3 = self.spec_distance(pqmf_audio_f3,pqmf_audio)
+        audio_loss = audio_loss1+audio_loss2+audio_loss3
+
+        return audio,vq_loss,audio_loss
+
+    def pqmf_output(self,audio):
+        z_q, _, _ = self.encode(audio)
+        return self.decode(z_q)
+    

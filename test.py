@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from ae import VQAE,VQAE_Audio
+from ae import VQAE,VQAE_Audio,VQAE_Audio2
 from params import params
 from sklearn.manifold import TSNE
 import torchaudio
@@ -16,13 +16,19 @@ from function import loadModel,save_audio,draw_wave,draw_heatmap,draw_dot
 from sklearn.decomposition import PCA
 pca = PCA(n_components=2)
 audio = torch.randn(16,1,48000).to(device)
-from ae import AE
+# mb_audio = torch.randn(16,16,3000).to(device)
 
-model = AE(params).to(device)
-audio_f,audio_loss,vq_loss,spectral_loss = model(audio)
-print(audio_f.shape)
-audio_x = model.inerence(audio)
-print(audio_x.shape)
+from ae import AE,VQAE_Module
+
+# model = AE(params).to(device)
+# audio_f,audio_loss,vq_loss,spectral_loss = model(audio)
+# model1 = VQAE_Audio_2(params,embed_dim=64,num_embeddings=2048).to(device)
+# model = VQAE_Module(channel=16,embed_dim=64).to(device)
+model = VQAE_Audio2(params,embed_dim=64).to(device)
+audio_f,vq_loss,audio_loss = model(audio)
+print(audio_f.shape,vq_loss,audio_loss)
+# audio_x = model.inerence(audio)
+# print(audio_x.shape)
 
 # spec_transform = torchaudio.transforms.MelSpectrogram(sample_rate=48*1000, n_fft=2048 ,win_length=2048 ,hop_length=960,n_mels=80).to(device)
 # melspec = spec_transform(audio)

@@ -27,32 +27,26 @@ if spec: modelname += "_spec"
 
 if spec:
     tts_model = StyleSpeech(config,embed_dim=80).to(device)
-    optimizer = optim.Adam(tts_model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=learning_rate())
-    tts_model = loadModel(tts_model,f"{modelname}_{100}","./model")
-    modelname+="_freeze"
-    for param in tts_model.pho_encoder.parameters():
-        param.requires_grad = False
-
 else:
     tts_model = StyleSpeech(config,embed_dim=64).to(device)
     optimizer = optim.Adam(tts_model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=learning_rate())
 loss_func = FastSpeechLoss()
 
 lr = learning_rate()
-file_path = "/home/haoweilou/scratch/baker/"
-# file_path = "L:/baker/"
-bakertext = BakerText(normalize=False,start=0,end=9000,path=file_path)
-bakeraudio = BakerAudio(start=0,end=9000,path=file_path)
+# file_path = "/home/haoweilou/scratch/baker/"
+file_path = "L:/baker/"
+bakertext = BakerText(normalize=False,start=9000,end=10000,path=file_path)
+bakeraudio = BakerAudio(start=9000,end=10000,path=file_path)
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
     text_batch = [torch.stack([item[i] for item in text_batch]) for i in range(len(text_batch[0]))]
     audio_batch = bakeraudio.collate(audio_batch)
     return text_batch, audio_batch
 
-loader = torch.utils.data.DataLoader(dataset=list(zip(bakertext, bakeraudio)), collate_fn=collate_fn, batch_size=32, shuffle=True)
+loader = torch.utils.data.DataLoader(dataset=list(zip(bakertext, bakeraudio)), collate_fn=collate_fn, batch_size=32, shuffle=False)
 
 loss_log = pd.DataFrame({"total_loss":[],"mse_loss":[],"duration_loss":[]})
-loss_log_name =  f"./log/loss_{modelname}"
+loss_log_name =  f"./log/loss_{modelname}_eval"
 # if os.path.exists(loss_log_name):
 #     loss_log = pd.read_csv(loss_log_name, usecols=["total_loss", "mse_loss", "duration_loss"])
 if spec:
@@ -71,12 +65,12 @@ C = len(phoneme_set)+1  #Number of Phoneme Class, include blank, 87+1=88
 aligner = SpeechRecognitionModel(input_dim=80,output_dim=C).to(device)
 aligner = loadModel(aligner,"aligner","./model")
 
-for epoch in range(100,201):
+for epoch in range(0,501,20):
     total_loss = 0
     mse_loss_ = 0
     duration_loss_ = 0
+    tts_model = loadModel(tts_model,f"{modelname}_{epoch}","./model")
     for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
-        optimizer.zero_grad()
         x,s,l,src_lens,mel_lens = [tensor.to('cuda') for tensor in text_batch]
         with torch.no_grad():
             audio = audio_batch.to(device)
@@ -109,16 +103,7 @@ for epoch in range(100,201):
         total_loss += loss.item()
         mse_loss_ += mse_loss.item()
         duration_loss_ += duration_loss.item()
-        loss.backward()
-        optimizer.step()
-        torch.nn.utils.clip_grad_norm_(tts_model.parameters(), max_norm=1.0)
 
     print(f"Epoch: {epoch} MSE Loss: {mse_loss_/len(loader):.03f} Duration Loss: {duration_loss_/len(loader):.03f} Total: {total_loss/len(loader):.03f}")
-    if epoch % 20 == 0:
-        saveModel(tts_model,f"{modelname}_{epoch}","./model/")
     loss_log.loc[len(loss_log.index)] = [total_loss/len(loader),mse_loss_/len(loader),duration_loss_/len(loader)]
     loss_log.to_csv(loss_log_name)
-    if epoch > 0:
-        new_lr = learning_rate(step=epoch)
-        for param_group in optimizer.param_groups:
-            param_group['lr'] = new_lr

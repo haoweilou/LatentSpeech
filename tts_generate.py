@@ -37,9 +37,10 @@ loader = torch.utils.data.DataLoader(dataset=list(zip(bakertext, bakeraudio)), c
 tts_model = StyleSpeech(config,embed_dim=80).to(device)
 
 # for epoch in range(350,400,50):
-for epoch in [200]:
+for epoch in range(160,161,20):
 
-    tts_model = loadModel(tts_model,f"StyleSpeech_spec_{epoch}","./model/")
+    # tts_model = loadModel(tts_model,f"StyleSpeech_spec_{epoch}","./model/")
+    tts_model = loadModel(tts_model,f"StyleSpeech_spec_freeze_{epoch}","./model/")
     index = 0
     for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
         x,s,l,src_lens,mel_lens = [tensor.to('cuda') for tensor in text_batch]
@@ -71,7 +72,7 @@ for epoch in [200]:
         
 
     from function import phone_to_phone_idx,hanzi_to_pinyin
-    hanzi = "我是语音智能机器人我们喜欢你"
+    hanzi = "天然林中的树木呈现五彩斑斓的颜色"
     pinyin = hanzi_to_pinyin(hanzi)
     print(pinyin)
     # # pinyin = ["la1","la2","la3","la4","la5"]
