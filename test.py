@@ -18,15 +18,24 @@ pca = PCA(n_components=2)
 audio = torch.randn(16,1,48000).to(device)
 # mb_audio = torch.randn(16,16,3000).to(device)
 
-from ae import AE,VQAE_Module
+from ae import AE,VQAE_Module,Upsampler
 
 # model = AE(params).to(device)
 # audio_f,audio_loss,vq_loss,spectral_loss = model(audio)
 # model1 = VQAE_Audio_2(params,embed_dim=64,num_embeddings=2048).to(device)
 # model = VQAE_Module(channel=16,embed_dim=64).to(device)
 model = VQAE_Audio2(params,embed_dim=64).to(device)
-audio_f,vq_loss,audio_loss = model(audio)
-print(audio_f.shape,vq_loss,audio_loss)
+
+pqmf_audio = model.pqmf(audio)#[1,A]=>[Channel,A]
+level1_embed,_ = model.level1.encode(pqmf_audio)
+level2_embed,_ = model.level2.encode(pqmf_audio)
+level3_embed,_ = model.level3.encode(pqmf_audio)
+print(level1_embed.shape,level2_embed.shape,level3_embed.shape)
+upsample = Upsampler(embed_dim=64,num_bands=64).to(device)
+level1_embed_f,level2_embed_f = upsample(level1_embed,level2_embed,level3_embed)
+
+print(level1_embed_f.shape,level2_embed_f.shape)
+# print(audio_f.shape,vq_loss,audio_loss)
 # audio_x = model.inerence(audio)
 # print(audio_x.shape)
 

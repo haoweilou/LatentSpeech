@@ -1,4 +1,4 @@
-from ae import VQAE_Audio,VQAE,WaveNet,AE,VQAE_Audio2
+from ae import VQAE_Audio,VQAE,WaveNet,AE,VQAE_Audio2,Upsampler
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -14,12 +14,16 @@ from params import params
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 model = VQAE_Audio2(params).to(device)
 model_name = "vqae_audio2"
+model = loadModel(model,f"{model_name}_200","./model/")
 
 from sklearn.decomposition import PCA
 
 pca = PCA(n_components=2)
 # model = loadModel(model,f"{model_name}_{num}","./model/")
-model = loadModel(model,f"{model_name}_200","./model/")
+
+upsampler = Upsampler(64,64).to(device)
+upsampler = loadModel(upsampler,f"upsampler_50","./model/")
+
 # finetune = WaveNet(num_layers=20).to(device)
 dataset = BakerAudio(0,10,"L:/baker/")
 # dataset = LJSpeechAudio(0,10,"L:/LJSpeech/")
@@ -35,22 +39,27 @@ with torch.no_grad():
         
         draw_wave(audio[0][0].to("cpu"),"real")
         save_audio(audio[0].to("cpu"),48000,"real")
-        models = [model.level1,model.level2,model.level3]
-        for idx,m in enumerate(models):
-            z_q,_= m.encode(pqmf_audio)
-            pqmf_audio_f = m.decode(z_q)
-            a = model.pqmf.inverse(pqmf_audio_f)
-
-            draw_wave(a[0][0].to("cpu"),f"fake_audio_{idx}")
-            save_audio(a[0].to("cpu"),48000,f"fake_audio_{idx}")
         
-            print(a.shape)
-            codebook = m.vq_layer.embed.permute(1,0)
-            print(z_q.shape)
-            z_q = z_q.permute(0, 2, 1).reshape(-1,64) 
-            combined = torch.concat((z_q,codebook),dim=0)
-            print(z_q.shape,codebook.shape,combined.shape)
-            combined = pca.fit_transform(combined.cpu())
-            draw_dot([combined[:-2048],combined[-2048:]],["z_q","codebook"],name=f"z_q and codebook_{idx}")
-            
+        pqmf_audio = model.pqmf(audio)#[1,A]=>[Channel,A]
+
+        level3_embed,_ = model.level3.encode(pqmf_audio)
+
+        level2_embed = upsampler.upsample3(level3_embed)
+        level2_embed = level2_embed.permute(0,2,1)#C,T=>T,C
+        level2_embed,_,_ = model.level2.vq_layer(level2_embed)
+        level2_embed = level2_embed.permute(0,2,1)#T,C=>C,T
+        # level2_embed,_ = model.level2.encode(pqmf_audio)
+        
+        level2_embed,_ = model.level2.encode(pqmf_audio)
+        level1_embed = upsampler.upsample2(level2_embed)
+        # level1_embed = level1_embed.permute(0,2,1)#C,T=>T,C
+        # level1_embed,_,_ = model.level1.vq_layer(level1_embed)
+        # level1_embed = level1_embed.permute(0,2,1)#T,C=>C,T
+
+        pqmf_audio_f = model.level1.decode(level1_embed)
+        a = model.pqmf.inverse(pqmf_audio_f)
+        draw_wave(a[0][0].to("cpu"),f"fake_audio_upsamp")
+        save_audio(a[0].to("cpu"),48000,f"fake_audio_upsamp")
+
+        # a = model.pqmf.inverse(pqmf_audio_f)
         break

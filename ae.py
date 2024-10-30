@@ -769,4 +769,73 @@ class VQAE_Audio2(nn.Module):
     def pqmf_output(self,audio):
         z_q, _, _ = self.encode(audio)
         return self.decode(z_q)
-    
+
+
+class Upsampler(nn.Module):
+    def __init__(self, embed_dim=64, num_bands=100):
+        super().__init__()
+        self.upsample2 = nn.Sequential(
+            nn.ConvTranspose1d(embed_dim, embed_dim, kernel_size=2*2, stride=2,padding=2//2),  # Upsample for level1
+            nn.BatchNorm1d([embed_dim, 1]),
+            nn.GELU(),
+            nn.Conv1d(embed_dim, num_bands, kernel_size=3, padding=1),
+            nn.BatchNorm1d([num_bands, 1]),
+            nn.GELU(),
+            nn.ConvTranspose1d(embed_dim, embed_dim, kernel_size=2*2, stride=2,padding=2//2),  # Upsample for level1
+            nn.BatchNorm1d([num_bands, 1]),
+            nn.GELU(),
+            nn.Conv1d(embed_dim, num_bands, kernel_size=3, padding=1),
+            nn.BatchNorm1d([num_bands, 1]),
+            nn.GELU(),
+            nn.Conv1d(embed_dim, num_bands, kernel_size=3, padding=1),
+            nn.BatchNorm1d([num_bands, 1]),
+            nn.GELU(),
+            nn.Conv1d(embed_dim, num_bands, kernel_size=3, padding=1),
+            nn.BatchNorm1d([num_bands, 1]),
+            nn.GELU(),
+            nn.Conv1d(embed_dim, num_bands, kernel_size=3, padding=1),
+            nn.BatchNorm1d([num_bands, 1]),
+            nn.GELU(),
+            nn.Conv1d(embed_dim, num_bands, kernel_size=3, padding=1),
+            nn.BatchNorm1d([num_bands, 1]),
+            nn.GELU(),
+        )
+        
+        self.upsample3 = nn.Sequential(
+            nn.ConvTranspose1d(embed_dim, embed_dim, kernel_size=3*2, stride=3,padding=3//2),  # Upsample for level1
+            nn.BatchNorm1d([num_bands, 1]),
+            nn.GELU(),
+            nn.Conv1d(embed_dim, num_bands, kernel_size=3, padding=1),
+            nn.BatchNorm1d([num_bands, 1]),
+            nn.GELU(),
+            nn.Conv1d(embed_dim, num_bands, kernel_size=3, padding=1),
+            nn.BatchNorm1d([num_bands, 1]),
+            nn.GELU(),
+            nn.Conv1d(embed_dim, num_bands, kernel_size=3, padding=1),
+            nn.BatchNorm1d([num_bands, 1]),
+            nn.GELU(),
+            nn.Conv1d(embed_dim, num_bands, kernel_size=3, padding=1),
+            nn.BatchNorm1d([num_bands, 1]),
+            nn.GELU(),
+            nn.Conv1d(embed_dim, num_bands, kernel_size=3, padding=1),
+            nn.BatchNorm1d([num_bands, 1]),
+            nn.GELU(),
+            nn.Conv1d(embed_dim, num_bands, kernel_size=3, padding=1),
+            nn.BatchNorm1d([num_bands, 1]),
+            nn.GELU(),
+        )
+
+
+    def equal_size(self,a:torch.Tensor,b:torch.Tensor):
+        min_size = min(a.shape[-1],b.shape[-1])
+        a_truncated = a[..., :min_size]  # Keep all dimensions except truncate last dimension
+        b_truncated = b[..., :min_size]  # Same truncation for b
+        return a_truncated, b_truncated
+     
+
+    def forward(self,level1, level2, level3):
+        upsampled_level2 = self.upsample3(level3)
+        upsampled_level1 = self.upsample2(level2)
+        level1, upsampled_level1 = self.equal_size(level1,upsampled_level1)
+        level2, upsampled_level2 = self.equal_size(level2,upsampled_level2)
+        return upsampled_level1, upsampled_level2
