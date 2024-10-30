@@ -22,7 +22,7 @@ pca = PCA(n_components=2)
 # model = loadModel(model,f"{model_name}_{num}","./model/")
 
 upsampler = Upsampler(64,64).to(device)
-upsampler = loadModel(upsampler,f"upsampler_50","./model/")
+upsampler = loadModel(upsampler,f"upsampler_300","./model/")
 
 # finetune = WaveNet(num_layers=20).to(device)
 dataset = BakerAudio(0,10,"L:/baker/")
@@ -50,11 +50,11 @@ with torch.no_grad():
         level2_embed = level2_embed.permute(0,2,1)#T,C=>C,T
         # level2_embed,_ = model.level2.encode(pqmf_audio)
         
-        level2_embed,_ = model.level2.encode(pqmf_audio)
+        # level2_embed,_ = model.level2.encode(pqmf_audio)
         level1_embed = upsampler.upsample2(level2_embed)
-        # level1_embed = level1_embed.permute(0,2,1)#C,T=>T,C
-        # level1_embed,_,_ = model.level1.vq_layer(level1_embed)
-        # level1_embed = level1_embed.permute(0,2,1)#T,C=>C,T
+        level1_embed = level1_embed.permute(0,2,1)#C,T=>T,C
+        level1_embed,_,_ = model.level1.vq_layer(level1_embed)
+        level1_embed = level1_embed.permute(0,2,1)#T,C=>C,T
 
         pqmf_audio_f = model.level1.decode(level1_embed)
         a = model.pqmf.inverse(pqmf_audio_f)

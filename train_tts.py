@@ -22,16 +22,19 @@ def learning_rate(d_model=256,step=1,warmup_steps=400):
     return (1/math.sqrt(d_model)) * min(1/math.sqrt(step),step*warmup_steps**-1.5)
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-modelname = "StyleSpeech"
+# modelname = "StyleSpeech"
+modelname = "StyleSpeech4C"
+
 if spec: modelname += "_spec"
 
 if spec:
-    tts_model = StyleSpeech(config,embed_dim=80).to(device)
+    # tts_model = StyleSpeech(config,embed_dim=80,output_channel=1).to(device)#old
+    tts_model = StyleSpeech(config,embed_dim=20,output_channel=4).to(device)#new
     optimizer = optim.Adam(tts_model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=learning_rate())
-    tts_model = loadModel(tts_model,f"{modelname}_{100}","./model")
-    modelname+="_freeze"
-    for param in tts_model.pho_encoder.parameters():
-        param.requires_grad = False
+    # tts_model = loadModel(tts_model,f"{modelname}_{100}","./model")
+    # modelname+="_freeze"
+    # for param in tts_model.pho_encoder.parameters():
+    #     param.requires_grad = False
 
 else:
     tts_model = StyleSpeech(config,embed_dim=64).to(device)
@@ -71,7 +74,7 @@ C = len(phoneme_set)+1  #Number of Phoneme Class, include blank, 87+1=88
 aligner = SpeechRecognitionModel(input_dim=80,output_dim=C).to(device)
 aligner = loadModel(aligner,"aligner","./model")
 
-for epoch in range(100,201):
+for epoch in range(0,201):
     total_loss = 0
     mse_loss_ = 0
     duration_loss_ = 0
@@ -101,8 +104,9 @@ for epoch in range(100,201):
             max_mel_len = latent_r.shape[1]
         latent_f,log_l_pred,mel_masks = tts_model(x,s,src_lens=src_lens,mel_lens=mel_lens,duration_target=l,max_mel_len=max_mel_len)
         #latent_f = [T,featDim*channel]
-        latent_f = latent_f.reshape(b,t,20,vqae.num_channel) # [T,featDim,channel]
-        latent_f = latent_f.permute(0,3,1,2) #[channel,T,featDim]
+        # For concate channel
+        # latent_f = latent_f.reshape(b,t,20,vqae.num_channel) # [T,featDim,channel]
+        # latent_f = latent_f.permute(0,3,1,2) #[channel,T,featDim]
 
         l = l[:,:log_l_pred.shape[-1]]
         loss,mse_loss,duration_loss = loss_func(latent_r,latent_f,log_l_pred,l,mel_masks,device=device)

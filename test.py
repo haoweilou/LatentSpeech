@@ -24,17 +24,31 @@ from ae import AE,VQAE_Module,Upsampler
 # audio_f,audio_loss,vq_loss,spectral_loss = model(audio)
 # model1 = VQAE_Audio_2(params,embed_dim=64,num_embeddings=2048).to(device)
 # model = VQAE_Module(channel=16,embed_dim=64).to(device)
-model = VQAE_Audio2(params,embed_dim=64).to(device)
+# model = VQAE_Audio2(params,embed_dim=64).to(device)
 
-pqmf_audio = model.pqmf(audio)#[1,A]=>[Channel,A]
-level1_embed,_ = model.level1.encode(pqmf_audio)
-level2_embed,_ = model.level2.encode(pqmf_audio)
-level3_embed,_ = model.level3.encode(pqmf_audio)
-print(level1_embed.shape,level2_embed.shape,level3_embed.shape)
-upsample = Upsampler(embed_dim=64,num_bands=64).to(device)
-level1_embed_f,level2_embed_f = upsample(level1_embed,level2_embed,level3_embed)
+# pqmf_audio = model.pqmf(audio)#[1,A]=>[Channel,A]
+# level1_embed,_ = model.level1.encode(pqmf_audio)
+# level2_embed,_ = model.level2.encode(pqmf_audio)
+# level3_embed,_ = model.level3.encode(pqmf_audio)
+# print(level1_embed.shape,level2_embed.shape,level3_embed.shape)
+# upsample = Upsampler(embed_dim=64,num_bands=64).to(device)
+# level1_embed_f,level2_embed_f = upsample(level1_embed,level2_embed,level3_embed)
 
-print(level1_embed_f.shape,level2_embed_f.shape)
+from tts import StyleSpeech
+from tts_config import config
+tts = StyleSpeech(config)
+x = torch.tensor([[1,1,1,1]]).to(device)
+s = torch.tensor([[1,1,1,1]]).to(device)
+src_lens = torch.tensor([[4]]).to(device)
+mel_lens = torch.tensor([[16]]).to(device)
+l = torch.tensor([[4,4,4,4]]).to(device)
+max_mel_len = 20
+
+
+
+latent_f,log_l_pred,mel_masks = tts(x,s,src_lens=src_lens,mel_lens=mel_lens,duration_target=l,max_mel_len=max_mel_len)
+
+# print(level1_embed_f.shape,level2_embed_f.shape)
 # print(audio_f.shape,vq_loss,audio_loss)
 # audio_x = model.inerence(audio)
 # print(audio_x.shape)

@@ -18,7 +18,7 @@ model = VQAE_Audio2(params).to(device)
 model = loadModel(model,"vqae_audio2_200","./model")
 upsample = Upsampler(embed_dim=64,num_bands=64).to(device)
 
-optimizer = optim.Adam(upsample.parameters(),lr=params.learning_rate)
+optimizer = optim.Adam(upsample.parameters(),lr=0.001)
 loss_log = pd.DataFrame({"total_loss":[],"vq_loss":[],"audio_loss":[]})
 dataset1 = BakerAudio(0,1000)
 dataset2 = LJSpeechAudio(0,1000)
