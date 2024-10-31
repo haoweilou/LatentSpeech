@@ -15,7 +15,7 @@ import pandas as pd
 torch.autograd.set_detect_anomaly(True)
 
 model = VQAE(params).to(device)
-optimizer = optim.Adam(model.parameters(),lr=0.0003)
+optimizer = optim.Adam(model.parameters(),lr=0.0001)
 
 loss_log = pd.DataFrame({"total_loss":[],"vq_loss":[],"audio_loss":[]})
 dataset1 = BakerAudio(0,1000)
@@ -45,7 +45,7 @@ for epoch in range(epochs):
         vq_loss_ += vq_loss.item()
         audio_loss_ += audio_loss.item()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
     
     print(f"Epoch: {epoch} Audio Loss: {audio_loss_/len(loader):.03f} VQ Loss: {vq_loss_/len(loader):.03f} Total: {loss_val/len(loader):.03f}")

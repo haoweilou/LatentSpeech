@@ -4,6 +4,10 @@ import torch.nn.functional as F
 import torch.optim as optim
 import math
 from ae import Quantize,PQMF,AudioDistance
+def weights_init(m):
+    if isinstance(m, nn.Conv2d):
+        torch.nn.init.xavier_uniform_(m.weight)
+        torch.nn.init.zeros_(m.bias)
 
 class ResConv1DBlock(nn.Module):
     def __init__(self, n_in, n_state, dilation=1, zero_out=False, res_scale=1.0):
@@ -101,14 +105,22 @@ class VQAE(nn.Module):
         self.pqmf = PQMF(100,n_band=self.pqmf_channel)
         self.encoder = EncoderBlock(input_dim=self.pqmf_channel
                                     ,output_dim=self.hidden_dim,
-                                    down_t=1,stride_t=2,hidden_dim=self.hidden_dim,
+                                    down_t=2,stride_t=2,hidden_dim=self.hidden_dim,
                                     depth=4,m_conv=10,dilation_growth_rate=3)
+        self.encoder.apply(weights_init)
         self.vq_layer = Quantize(self.hidden_dim,2048)
         self.decoder = DecoderBlock(input_dim=self.pqmf_channel
                                     ,output_dim=self.hidden_dim,
-                                    down_t=1,stride_t=2,hidden_dim=self.hidden_dim,
+                                    down_t=2,stride_t=2,hidden_dim=self.hidden_dim,
                                     depth=4,m_conv=10,dilation_growth_rate=3)
+        self.decoder.apply(weights_init)
 
+        self.wave_gen = nn.Conv1d(self.pqmf_channel,self.pqmf_channel,7,padding=3)
+        self.loud_gen = nn.Conv1d(self.pqmf_channel,self.pqmf_channel,3,1,padding=1)
+
+    def mod_sigmoid(self,x):
+        return 2 * torch.sigmoid(x)**2.3 + 1e-7
+    
     def forward(self, x):
         pqmf_audio = self.pqmf(x)
         z = self.encoder(pqmf_audio)
@@ -116,5 +128,10 @@ class VQAE(nn.Module):
         z_q,vq_loss,_ = self.vq_layer(z)
         z_q = z_q.permute(0,2,1)
         pqmf_audio_f = self.decoder(z_q)
+
+        # loud = self.loud_gen(pqmf_audio_f)
+        # wave = self.wave_gen(pqmf_audio_f)
+        # pqmf_audio_f = torch.tanh(wave) *  self.mod_sigmoid(loud)
+
         audio_loss = self.spec_distance(pqmf_audio,pqmf_audio_f)
         return self.pqmf.inverse(pqmf_audio_f),audio_loss,vq_loss

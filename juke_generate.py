@@ -15,7 +15,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 model = VQAE(params).to(device)
 model_name = "juke_vqae"
-model = loadModel(model,f"{model_name}_0","./model/")
+model = loadModel(model,f"{model_name}_50","./model/")
 from sklearn.decomposition import PCA
 
 pca = PCA(n_components=2)
