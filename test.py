@@ -6,19 +6,19 @@ from ae import VQAE,VQAE_Audio,VQAE_Audio2
 from params import params
 from sklearn.manifold import TSNE
 import torchaudio
-tsne = TSNE(n_components=2, random_state=42)
-device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-audio = torch.randn(2,1,48000).to(device)
-# vqae = VQAE(params).to(device)
-vqae = VQAE_Audio(params).to(device)
+# tsne = TSNE(n_components=2, random_state=42)
+# device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+# audio = torch.randn(2,1,48000).to(device)
+# # vqae = VQAE(params).to(device)
+# vqae = VQAE_Audio(params).to(device)
 
-from function import loadModel,save_audio,draw_wave,draw_heatmap,draw_dot
-from sklearn.decomposition import PCA
-pca = PCA(n_components=2)
-audio = torch.randn(16,1,48000).to(device)
+# from function import loadModel,save_audio,draw_wave,draw_heatmap,draw_dot
+# from sklearn.decomposition import PCA
+# pca = PCA(n_components=2)
+# audio = torch.randn(16,1,48000).to(device)
 # mb_audio = torch.randn(16,16,3000).to(device)
 
-from ae import AE,VQAE_Module,Upsampler
+# from ae import AE,VQAE_Module,Upsampler
 
 # model = AE(params).to(device)
 # audio_f,audio_loss,vq_loss,spectral_loss = model(audio)
@@ -34,19 +34,19 @@ from ae import AE,VQAE_Module,Upsampler
 # upsample = Upsampler(embed_dim=64,num_bands=64).to(device)
 # level1_embed_f,level2_embed_f = upsample(level1_embed,level2_embed,level3_embed)
 
-from tts import StyleSpeech
-from tts_config import config
-tts = StyleSpeech(config)
-x = torch.tensor([[1,1,1,1]]).to(device)
-s = torch.tensor([[1,1,1,1]]).to(device)
-src_lens = torch.tensor([[4]]).to(device)
-mel_lens = torch.tensor([[16]]).to(device)
-l = torch.tensor([[4,4,4,4]]).to(device)
-max_mel_len = 20
+# from tts import StyleSpeech
+# from tts_config import config
+# tts = StyleSpeech(config)
+# x = torch.tensor([[1,1,1,1]]).to(device)
+# s = torch.tensor([[1,1,1,1]]).to(device)
+# src_lens = torch.tensor([[4]]).to(device)
+# mel_lens = torch.tensor([[16]]).to(device)
+# l = torch.tensor([[4,4,4,4]]).to(device)
+# max_mel_len = 20
 
 
 
-latent_f,log_l_pred,mel_masks = tts(x,s,src_lens=src_lens,mel_lens=mel_lens,duration_target=l,max_mel_len=max_mel_len)
+# latent_f,log_l_pred,mel_masks = tts(x,s,src_lens=src_lens,mel_lens=mel_lens,duration_target=l,max_mel_len=max_mel_len)
 
 # print(level1_embed_f.shape,level2_embed_f.shape)
 # print(audio_f.shape,vq_loss,audio_loss)
@@ -84,3 +84,17 @@ latent_f,log_l_pred,mel_masks = tts(x,s,src_lens=src_lens,mel_lens=mel_lens,dura
 # # audio_fake = vqae.decode_inference(z_q,b,embed_dim,H,T)
 
 # # print(z_q.shape,audio_fake.shape)
+from params import params
+from jukebook import *
+pqmf_channel = 8
+t = 48*1000 // pqmf_channel
+model = VQAE(params)
+
+audio = torch.rand(8,1,48000)
+o = model(audio)
+# encoder = EncoderBlock(pqmf_channel,64,hidden_dim=64,down_t=1,stride_t=2,depth=4,m_conv=10,dilation_growth_rate=3)
+# o = encoder(pqmf_audio)
+# # print(o.shape)
+# decoder = DecoderBlock(pqmf_channel,64,hidden_dim=64,down_t=1,stride_t=2,depth=4,m_conv=10,dilation_growth_rate=3,dilation_cycle=3)
+# a_f = decoder(o)
+print(audio.shape,o.shape)
