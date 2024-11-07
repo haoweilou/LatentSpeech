@@ -1,4 +1,4 @@
-from jukebook import VQAE
+from jukebox import VQAE
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -15,17 +15,18 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 model = VQAE(params).to(device)
 model_name = "juke_vqae"
-model = loadModel(model,f"{model_name}_50","./model/")
+model_name = "juke_vqae_upsampler"
+model = loadModel(model,f"{model_name}_500","./model/")
 from sklearn.decomposition import PCA
 
 pca = PCA(n_components=2)
 # finetune = WaveNet(num_layers=20).to(device)
-# dataset = BakerAudio(0,10,"L:/baker/")
+dataset = BakerAudio(0,10,"L:/baker/")
 # # dataset = LJSpeechAudio(0,10,"L:/LJSpeech/")
-# loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
+loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
 
 with torch.no_grad():
-    for audio in tqdm([torch.rand(16,1,48000)]):
+    for audio in tqdm(loader):
         audio = audio.to(device)
         pqmf_audio = model.pqmf(audio)
         time_steps = audio.shape[-1]
@@ -35,20 +36,37 @@ with torch.no_grad():
         draw_wave(audio[0][0].to("cpu"),"real")
         save_audio(audio[0].to("cpu"),48000,"real")
 
-        a,_,_ = model(audio)
-
+        # a,_,_,_ = model(audio)
+        a = model.inference(audio)
+        print(a.shape)
         draw_wave(a[0][0].to("cpu"),f"fake_audio")
         save_audio(a[0].to("cpu"),48000,f"fake_audio")
 
         pqmf_audio = model.pqmf(audio)
-        z = model.encoder(pqmf_audio)
-        z = z.permute(0,2,1).reshape(-1,64)
-        z_q,vq_loss,_ = model.vq_layer(z)
+        a,_,_,_ = model(audio)
+        print(a.shape)
+        draw_wave(a[0][0].to("cpu"),f"fake_audio_normal")
+        save_audio(a[0].to("cpu"),48000,f"fake_audio_normal")
 
-        codebook = model.vq_layer.embed.permute(1,0)
-        combined = torch.concat((z_q,codebook),dim=0)
-        print(z_q.shape,codebook.shape,combined.shape)
-        combined = pca.fit_transform(combined.cpu())
-        draw_dot([combined[:-2048],combined[-2048:]],["z_q","codebook"],name=f"z_q and codebook")
+        # z = model.encoder1(pqmf_audio)
+        # z = z.permute(0,2,1).reshape(-1,64)
+        # z_q,vq_loss,_ = model.vq_layer1(z)
+        # codebook = model.vq_layer1.embed.permute(1,0)
+
+        # z1 = model.encoder1(pqmf_audio)
+        # z1 = z1.permute(0,2,1)
+        # z_q1,vq_loss1,_ = model.vq_layer1(z1)
+        # z_q1 = z_q1.permute(0,2,1)
+        
+        # z2 = z_q1 + z1.permute(0,2,1)
+        # z2 = model.encoder2(z2)
+        # z2 = z2.permute(0,2,1).reshape(-1,64)
+        # z_q2,vq_loss2,_ = model.vq_layer2(z2)
+        # z_q = z_q2
+        # codebook = model.vq_layer2.embed.permute(1,0)
+        # combined = torch.concat((z_q,codebook),dim=0)
+        # print(z_q.shape,codebook.shape,combined.shape)
+        # combined = pca.fit_transform(combined.cpu())
+        # draw_dot([combined[:-2048],combined[-2048:]],["z_q","codebook"],name=f"z_q and codebook")
        
         break

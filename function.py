@@ -53,9 +53,9 @@ def saveModel(model,name,root="./save/model"):
 def learning_rate(d_model=256,step=1,warmup_steps=400):
     return (1/math.sqrt(d_model)) * min(1/math.sqrt(step),step*warmup_steps**-1.5)
 
-def loadModel(model,name,root="/home/haoweilou/scratch/model/denoise"):
+def loadModel(model,name,root="/home/haoweilou/scratch/model/denoise", strict=True):
     path = f"{root}/{name}.pth" 
-    model.load_state_dict(torch.load(path))
+    model.load_state_dict(torch.load(path), strict=strict)
     model.eval()
     return model
 

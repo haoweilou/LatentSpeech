@@ -72,7 +72,7 @@ for epoch in range(160,161,20):
         
 
     from function import phone_to_phone_idx,hanzi_to_pinyin
-    hanzi = "天然林中的树木呈现五彩斑斓的颜色"
+    hanzi = "我们城市的复苏有赖于他强有力的政策"
     pinyin = hanzi_to_pinyin(hanzi)
     print(pinyin)
     # # pinyin = ["la1","la2","la3","la4","la5"]
