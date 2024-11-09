@@ -88,8 +88,10 @@ from params import params
 from jukebox import *
 pqmf_channel = 8
 t = 48*1000 // pqmf_channel
-model = VQAE(params)
+model = VQAE(ratios=[4,4,4])
+model = Jukebox(params)
 
+# audio = torch.rand(8,1,48000)
 audio = torch.rand(8,1,48000)
 o,_,_ = model(audio)
 # encoder = EncoderBlock(pqmf_channel,64,hidden_dim=64,down_t=1,stride_t=2,depth=4,m_conv=10,dilation_growth_rate=3)

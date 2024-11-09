@@ -1,4 +1,4 @@
-from jukebox import VQAE
+from jukebox import Jukebox
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -12,11 +12,11 @@ from torch.utils.data import DataLoader
 
 from params import params
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
-model = VQAE(params).to(device)
-model_name = "juke_vqae"
-model_name = "juke_vqae_upsampler"
-model = loadModel(model,f"{model_name}_500","./model/")
+num = 600
+model = Jukebox(params).to(device)
+model_name = "jukebox"
+# model_name = "juke_vqae_upsampler"
+model = loadModel(model,f"{model_name}_{num}","./model/")
 from sklearn.decomposition import PCA
 
 pca = PCA(n_components=2)
@@ -37,16 +37,23 @@ with torch.no_grad():
         save_audio(audio[0].to("cpu"),48000,"real")
 
         # a,_,_,_ = model(audio)
-        a = model.inference(audio)
-        print(a.shape)
-        draw_wave(a[0][0].to("cpu"),f"fake_audio")
-        save_audio(a[0].to("cpu"),48000,f"fake_audio")
+        pqmf_audio1,vq_loss1 = model.vqae1(pqmf_audio)
+        pqmf_audio1 = model.decode_audio(pqmf_audio1)
+        a = model.pqmf.inverse(pqmf_audio1)
+        draw_wave(a[0][0].to("cpu"),f"fake_audio_layer1")
+        save_audio(a[0].to("cpu"),48000,f"fake_audio_layer1")
 
-        pqmf_audio = model.pqmf(audio)
-        a,_,_,_ = model(audio)
-        print(a.shape)
-        draw_wave(a[0][0].to("cpu"),f"fake_audio_normal")
-        save_audio(a[0].to("cpu"),48000,f"fake_audio_normal")
+        pqmf_audio1,vq_loss1 = model.vqae2(pqmf_audio)
+        pqmf_audio1 = model.decode_audio(pqmf_audio1)
+        a = model.pqmf.inverse(pqmf_audio1)
+        draw_wave(a[0][0].to("cpu"),f"fake_audio_layer2")
+        save_audio(a[0].to("cpu"),48000,f"fake_audio_layer2")
+
+        pqmf_audio1,vq_loss1 = model.vqae3(pqmf_audio)
+        pqmf_audio1 = model.decode_audio(pqmf_audio1)
+        a = model.pqmf.inverse(pqmf_audio1)
+        draw_wave(a[0][0].to("cpu"),f"fake_audio_layer3")
+        save_audio(a[0].to("cpu"),48000,f"fake_audio_layer3")
 
         # z = model.encoder1(pqmf_audio)
         # z = z.permute(0,2,1).reshape(-1,64)
