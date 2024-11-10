@@ -131,20 +131,35 @@ class Decoder(nn.Module):
     def forward(self, x):
         return self.model(x)
 
+class Permute(nn.Module):
+    def __init__(self, *dims):
+        super(Permute, self).__init__()
+        self.dims = dims
+
+    def forward(self, x):
+        return x.permute(*self.dims)
+
 class UpSampler(nn.Module):
     """Some Information about UpSampler"""
-    def __init__(self,feature_dim,num_res_layer,ratio:int=4):
+    def __init__(self,feature_dim, hidden_dim, num_res_layer,ratio:int=4):
         super(UpSampler, self).__init__()
-        model_list = [Decoder(feature_dim,feature_dim,feature_dim,ratio),
-            ResidualBlock(feature_dim,feature_dim,dilation=2,kernel_size=3),
-            nn.BatchNorm1d(feature_dim)]
+        model_list = [
+                nn.Conv1d(feature_dim,hidden_dim,1),
+                nn.BatchNorm1d(hidden_dim),
+                nn.LeakyReLU(0.2)]
         
         for _ in range(num_res_layer):
             model_list += [
-                ResidualBlock(feature_dim,feature_dim,dilation=2,kernel_size=3),
-                nn.BatchNorm1d(feature_dim),
+                ResidualBlock(hidden_dim,hidden_dim,dilation=2,kernel_size=3),
+                nn.BatchNorm1d(hidden_dim),
                 nn.LeakyReLU(0.2),
             ]
+        model_list += [Decoder(hidden_dim,feature_dim,hidden_dim,ratio),
+            Permute(0, 2, 1),
+            nn.LayerNorm(feature_dim),
+            Permute(0, 2, 1)
+        ]
+        
         self.model = nn.Sequential(
             *model_list
         )
@@ -175,14 +190,10 @@ class VQAE(nn.Module):
         self.encoder = nn.Sequential(*encoders)
         self.decoder = nn.Sequential(*decoders)
 
-
-
     def encode(self,x):
         z = self.encoder(x)
         zq,_ = self.quant(z)
         return zq
-    
-
     
     def quant(self,z):
         z = z.permute(0,2,1)  
@@ -210,12 +221,11 @@ class Jukebox(nn.Module):
         self.vqae3 = VQAE([4,4,4])
         self.vqae3.apply(weights_init)
 
-        self.upsampler1 = UpSampler(self.hidden_dim,num_res_layer=8,ratio=4)
-        self.upsampler2 = UpSampler(self.hidden_dim,num_res_layer=8,ratio=4)
+        self.upsampler1 = UpSampler(self.hidden_dim,256,num_res_layer=16,ratio=4)
+        self.upsampler2 = UpSampler(self.hidden_dim,256,num_res_layer=16,ratio=4)
 
         self.wave_gen = nn.Conv1d(self.pqmf_channel,self.pqmf_channel,7,padding=3)
         self.loud_gen = nn.Conv1d(self.pqmf_channel,self.pqmf_channel,3,1,padding=1)
-    
     
     
     def equal_size(self,a:torch.Tensor,b:torch.Tensor):
@@ -227,21 +237,37 @@ class Jukebox(nn.Module):
     def mod_sigmoid(self,x):
         return 2 * torch.sigmoid(x)**2.3 + 1e-7
     
+    def upsample(self,x):
+        # z3q = self.vqae3.encode(x)
+        # z2q_f = self.upsampler2(z3q.detach())#3=>2
+        # z2q,_ = self.vqae2.quant(z2q_f)
+
+        z2q = self.vqae2.encode(x)
+        z1q = self.upsampler1(z2q.detach())#2=>1
+        z1q,_ = self.vqae1.quant(z1q)
+        pqmf_audio = self.vqae1.decoder(z1q)
+        pqmf_audio = self.decode_audio(pqmf_audio)
+        return self.pqmf.inverse(pqmf_audio)
+
     def train_sampler(self,x):
         pqmf_audio = self.pqmf(x)
-        z1q = self.vqae1.encode(pqmf_audio)
-        z2q = self.vqae2.encode(pqmf_audio)
-        z3q = self.vqae3.encode(pqmf_audio)
-
+        with torch.no_grad():
+            z1q = self.vqae1.encode(pqmf_audio)
+            z2q = self.vqae2.encode(pqmf_audio)
+        # z3q = self.vqae3.encode(pqmf_audio)
         z1q_f = self.upsampler1(z2q.detach())
         z1q_f,z1q = self.equal_size(z1q_f,z1q)
-        feature_loss2 = F.mse_loss(z1q_f,z1q)
+        feature_loss1 = F.mse_loss(z1q_f,z1q)
 
-        z2q_f = self.upsampler2(z3q.detach())
-        z2q_f,z2q = self.equal_size(z2q_f,z2q)
-        feature_loss3 = F.mse_loss(z2q_f,z2q)
+        # z2q_f = self.upsampler2(z3q.detach())
+        # z2q_f,z2q = self.equal_size(z2q_f,z2q)
+        # feature_loss2 = F.mse_loss(z2q_f,z2q)
 
-        feature_loss = feature_loss2 + feature_loss3
+        # z1q_f = self.upsampler1(z2q_f)
+        # z1q_f,z1q = self.equal_size(z1q_f,z1q)
+        # feature_loss3 =  F.mse_loss(z1q_f,z1q)
+        
+        feature_loss = feature_loss1 
         return feature_loss
 
     def decode_audio(self,x):

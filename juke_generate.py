@@ -12,9 +12,12 @@ from torch.utils.data import DataLoader
 
 from params import params
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-num = 600
+num = 50
 model = Jukebox(params).to(device)
-model_name = "jukebox"
+# model_name = "jukebox"
+# model_name = "jukbox_upsampler"
+model_name = "jukebox_upsampler"
+
 # model_name = "juke_vqae_upsampler"
 model = loadModel(model,f"{model_name}_{num}","./model/")
 from sklearn.decomposition import PCA
@@ -22,7 +25,7 @@ from sklearn.decomposition import PCA
 pca = PCA(n_components=2)
 # finetune = WaveNet(num_layers=20).to(device)
 dataset = BakerAudio(0,10,"L:/baker/")
-# # dataset = LJSpeechAudio(0,10,"L:/LJSpeech/")
+# dataset = LJSpeechAudio(0,10,"L:/LJSpeech/")
 loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
 
 with torch.no_grad():
@@ -54,6 +57,10 @@ with torch.no_grad():
         a = model.pqmf.inverse(pqmf_audio1)
         draw_wave(a[0][0].to("cpu"),f"fake_audio_layer3")
         save_audio(a[0].to("cpu"),48000,f"fake_audio_layer3")
+
+        a = model.upsample(pqmf_audio)
+        draw_wave(a[0][0].to("cpu"),f"fake_audio_upsample")
+        save_audio(a[0].to("cpu"),48000,f"fake_audio_upsample")
 
         # z = model.encoder1(pqmf_audio)
         # z = z.permute(0,2,1).reshape(-1,64)

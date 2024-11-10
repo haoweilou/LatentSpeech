@@ -15,8 +15,15 @@ import pandas as pd
 torch.autograd.set_detect_anomaly(True)
 
 model = Jukebox(params).to(device)
-model = loadModel(model,"jukebox_500",root="./model/",strict=False)
-optimizer = optim.Adam(list(model.upsampler1.parameters())+list(model.upsampler2.parameters()),lr=0.0001)
+model = loadModel(model,"jukebox_700",root="./model/",strict=False)
+
+# model2 = Jukebox(params).to(device)
+# model2 = loadModel(model2,"jukbox_upsampler_2000",root="./model/",strict=False)
+
+# model.upsampler1 = model2.upsampler1
+# model.upsampler2 = model2.upsampler2
+
+optimizer = optim.Adam(list(model.upsampler1.parameters())+list(model.upsampler2.parameters()),lr=0.0003)
 
 loss_log = pd.DataFrame({"total_loss":[], "feature_loss":[]})
 dataset1 = BakerAudio(0,1000)
@@ -24,10 +31,10 @@ dataset1 = BakerAudio(0,1000)
 # dataset = ConcatDataset([dataset1, dataset2])
 dataset = ConcatDataset([dataset1])
 
-batch_size = 16
+batch_size = 32
 loader = DataLoader(dataset,batch_size=batch_size,collate_fn=dataset1.collate,drop_last=True,shuffle=True)
-epochs = 5001
-model_name = "jukbox_upsampler"
+epochs = 2001
+model_name = "jukebox_upsampler"
 
 for epoch in range(epochs):
     loss_val = 0
@@ -49,7 +56,7 @@ for epoch in range(epochs):
     
     print(f"Epoch: {epoch} Feature Loss: {feature_loss_/len(loader):.03f} Total: {loss_val/len(loader):.03f}")
     
-    if epoch % 500 == 0:
+    if epoch % 50 == 0:
         saveModel(model,f"{model_name}_{epoch}","./model/")
 
     loss_log.loc[len(loss_log.index)] = [loss_val/len(loader),feature_loss_/len(loader)]
