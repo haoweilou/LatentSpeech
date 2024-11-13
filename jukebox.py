@@ -238,11 +238,11 @@ class Jukebox(nn.Module):
         return 2 * torch.sigmoid(x)**2.3 + 1e-7
     
     def upsample(self,x):
-        # z3q = self.vqae3.encode(x)
-        # z2q_f = self.upsampler2(z3q.detach())#3=>2
-        # z2q,_ = self.vqae2.quant(z2q_f)
+        z3q = self.vqae3.encode(x)
+        z2q_f = self.upsampler2(z3q.detach())#3=>2
+        z2q,_ = self.vqae2.quant(z2q_f)
 
-        z2q = self.vqae2.encode(x)
+        # z2q = self.vqae2.encode(x)
         z1q = self.upsampler1(z2q.detach())#2=>1
         z1q,_ = self.vqae1.quant(z1q)
         pqmf_audio = self.vqae1.decoder(z1q)
@@ -254,20 +254,20 @@ class Jukebox(nn.Module):
         with torch.no_grad():
             z1q = self.vqae1.encode(pqmf_audio)
             z2q = self.vqae2.encode(pqmf_audio)
-        # z3q = self.vqae3.encode(pqmf_audio)
+            z3q = self.vqae3.encode(pqmf_audio)
         z1q_f = self.upsampler1(z2q.detach())
         z1q_f,z1q = self.equal_size(z1q_f,z1q)
         feature_loss1 = F.mse_loss(z1q_f,z1q)
 
-        # z2q_f = self.upsampler2(z3q.detach())
-        # z2q_f,z2q = self.equal_size(z2q_f,z2q)
-        # feature_loss2 = F.mse_loss(z2q_f,z2q)
+        z2q_f = self.upsampler2(z3q.detach())
+        z2q_f,z2q = self.equal_size(z2q_f,z2q)
+        feature_loss2 = F.mse_loss(z2q_f,z2q)
 
-        # z1q_f = self.upsampler1(z2q_f)
-        # z1q_f,z1q = self.equal_size(z1q_f,z1q)
-        # feature_loss3 =  F.mse_loss(z1q_f,z1q)
+        z1q_f = self.upsampler1(z2q_f)
+        z1q_f,z1q = self.equal_size(z1q_f,z1q)
+        feature_loss3 =  F.mse_loss(z1q_f,z1q)
         
-        feature_loss = feature_loss1 
+        feature_loss = feature_loss1 + feature_loss2 + feature_loss3
         return feature_loss
 
     def decode_audio(self,x):

@@ -56,7 +56,7 @@ def learning_rate(d_model=256,step=1,warmup_steps=400):
 def loadModel(model,name,root="/home/haoweilou/scratch/model/denoise", strict=True):
     path = f"{root}/{name}.pth" 
     state_dict = torch.load(path)
-    # filtered_state_dict = {k: v for k, v in state_dict.items() if not k.startswith("upsampler")}
+    # filtered_state_dict = {k: v for k, v in state_dict.items() if not k.startswith("upsampler2")}
     # model.load_state_dict(filtered_state_dict, strict=strict)
     model.load_state_dict(state_dict, strict=strict)
     model.eval()

@@ -514,8 +514,10 @@ class ResidualBlock(torch.nn.Module):
         self.causal_conv = CausalConv1d(in_channels, residual_channels, kernel_size, dilation)
         self.res_conv = torch.nn.Conv1d(residual_channels, in_channels, 1)  # 1x1 conv for residual connection
         self.skip_conv = torch.nn.Conv1d(residual_channels, in_channels, 1)  # Optional skip connection
+        self.act_fn = nn.LeakyReLU(0.2)
 
     def forward(self, x):
+        # out = self.act_fn(self.causal_conv(x))
         out = torch.tanh(self.causal_conv(x))
         res = self.res_conv(out)
         x = x[:, :, -res.size(2):]  # Adjust for padding differences if necessary

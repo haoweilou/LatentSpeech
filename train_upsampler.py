@@ -15,7 +15,10 @@ import pandas as pd
 torch.autograd.set_detect_anomaly(True)
 
 model = Jukebox(params).to(device)
-model = loadModel(model,"jukebox_700",root="./model/",strict=False)
+# model = loadModel(model,f"jukebox_upsampler","./model/",strict=False)
+model = loadModel(model,f"jukebox_upsampler_1000","./model/",strict=True)
+
+# model = loadModel(model,"jukebox_700",root="./model/",strict=False)
 
 # model2 = Jukebox(params).to(device)
 # model2 = loadModel(model2,"jukbox_upsampler_2000",root="./model/",strict=False)
@@ -26,17 +29,17 @@ model = loadModel(model,"jukebox_700",root="./model/",strict=False)
 optimizer = optim.Adam(list(model.upsampler1.parameters())+list(model.upsampler2.parameters()),lr=0.0003)
 
 loss_log = pd.DataFrame({"total_loss":[], "feature_loss":[]})
-dataset1 = BakerAudio(0,1000)
-# dataset2 = LJSpeechAudio(0,1000)
-# dataset = ConcatDataset([dataset1, dataset2])
-dataset = ConcatDataset([dataset1])
+dataset1 = BakerAudio(0,10000)
+dataset2 = LJSpeechAudio(0,10000)
+dataset = ConcatDataset([dataset1, dataset2])
+# dataset = ConcatDataset([dataset1])
 
 batch_size = 32
 loader = DataLoader(dataset,batch_size=batch_size,collate_fn=dataset1.collate,drop_last=True,shuffle=True)
 epochs = 2001
 model_name = "jukebox_upsampler"
 
-for epoch in range(epochs):
+for epoch in range(1001,epochs):
     loss_val = 0
     feature_loss_ = 0
     for audio in tqdm(loader):

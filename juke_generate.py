@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 
 from params import params
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-num = 50
+num = 850
 model = Jukebox(params).to(device)
 # model_name = "jukebox"
 # model_name = "jukbox_upsampler"
