@@ -167,7 +167,6 @@ class UpSampler(nn.Module):
     def forward(self, x):
         return self.model(x)
     
-
 class VQAE(nn.Module):
     """Some Information about VQAE"""
     def __init__(self,ratios):
@@ -223,7 +222,7 @@ class Jukebox(nn.Module):
 
         self.upsampler1 = UpSampler(self.hidden_dim,256,num_res_layer=16,ratio=4)
         self.upsampler2 = UpSampler(self.hidden_dim,256,num_res_layer=16,ratio=4)
-
+        
         self.wave_gen = nn.Conv1d(self.pqmf_channel,self.pqmf_channel,7,padding=3)
         self.loud_gen = nn.Conv1d(self.pqmf_channel,self.pqmf_channel,3,1,padding=1)
     
@@ -252,22 +251,23 @@ class Jukebox(nn.Module):
     def train_sampler(self,x):
         pqmf_audio = self.pqmf(x)
         with torch.no_grad():
-            z1q = self.vqae1.encode(pqmf_audio)
+            # z1q = self.vqae1.encode(pqmf_audio)
             z2q = self.vqae2.encode(pqmf_audio)
             z3q = self.vqae3.encode(pqmf_audio)
-        z1q_f = self.upsampler1(z2q.detach())
-        z1q_f,z1q = self.equal_size(z1q_f,z1q)
-        feature_loss1 = F.mse_loss(z1q_f,z1q)
+        # z1q_f = self.upsampler1(z2q.detach())
+        # z1q_f,z1q = self.equal_size(z1q_f,z1q)
+        # feature_loss1 = F.mse_loss(z1q_f,z1q)
 
         z2q_f = self.upsampler2(z3q.detach())
         z2q_f,z2q = self.equal_size(z2q_f,z2q)
         feature_loss2 = F.mse_loss(z2q_f,z2q)
 
-        z1q_f = self.upsampler1(z2q_f)
-        z1q_f,z1q = self.equal_size(z1q_f,z1q)
-        feature_loss3 =  F.mse_loss(z1q_f,z1q)
+        # z1q_f = self.upsampler1(z2q_f)
+        # z1q_f,z1q = self.equal_size(z1q_f,z1q)
+        # feature_loss3 =  F.mse_loss(z1q_f,z1q)
         
-        feature_loss = feature_loss1 + feature_loss2 + feature_loss3
+        # feature_loss = feature_loss1 + feature_loss2 + feature_loss3
+        feature_loss =  feature_loss2
         return feature_loss
 
     def decode_audio(self,x):

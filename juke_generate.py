@@ -12,21 +12,30 @@ from torch.utils.data import DataLoader
 
 from params import params
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-num = 850
+# num = 0
 model = Jukebox(params).to(device)
+num = 700
 # model_name = "jukebox"
-# model_name = "jukbox_upsampler"
-model_name = "jukebox_upsampler"
+num = 2000
+model_name = "jukebox_upsampler1"
+num = 1400
+model_name = "jukebox_upsampler2"
 
-# model_name = "juke_vqae_upsampler"
-model = loadModel(model,f"{model_name}_{num}","./model/")
+model = loadModel(model,f"{model_name}_{num}","./model/",strict=False)
 from sklearn.decomposition import PCA
 
 pca = PCA(n_components=2)
 # finetune = WaveNet(num_layers=20).to(device)
-dataset = BakerAudio(0,10,"L:/baker/")
-# dataset = LJSpeechAudio(0,10,"L:/LJSpeech/")
+base = 0
+dataset = BakerAudio(base+0,base+10,"L:/baker/")
+# dataset = LJSpeechAudio(base+0,base+10,"L:/LJSpeech/")
 loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
+wave_gen = nn.Conv1d(16,16,7,padding=3).to(device)
+loud_gen = nn.Conv1d(16,16,3,1,padding=1).to(device)
+wave_gen = loadModel(wave_gen,"wave_0","./model/")
+loud_gen = loadModel(loud_gen,"loud_0","./model/")
+model.loud_gen = loud_gen 
+model.wave_gen = wave_gen
 
 with torch.no_grad():
     for audio in tqdm(loader):
@@ -41,6 +50,7 @@ with torch.no_grad():
 
         # a,_,_,_ = model(audio)
         pqmf_audio1,vq_loss1 = model.vqae1(pqmf_audio)
+
         pqmf_audio1 = model.decode_audio(pqmf_audio1)
         a = model.pqmf.inverse(pqmf_audio1)
         draw_wave(a[0][0].to("cpu"),f"fake_audio_layer1")
