@@ -9,7 +9,8 @@ from function import loadModel,save_audio,draw_wave,draw_heatmap,draw_dot
 from dataset import BakerAudio,pad16,LJSpeechAudio
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 from torch.utils.data import DataLoader
-
+from function import plot_pqmf_bands
+from ae import PQMF
 from params import params
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 # num = 0
@@ -37,6 +38,8 @@ loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=F
 # model.loud_gen = loud_gen 
 # model.wave_gen = wave_gen
 # model.vqae1 = loadModel(model.vqae1,"vqae1_100","./model/")
+n_bands = 4
+pqmf = PQMF(100,n_bands).to(device)
 with torch.no_grad():
     for audio in tqdm(loader):
         audio = audio.to(device)
@@ -44,6 +47,7 @@ with torch.no_grad():
         time_steps = audio.shape[-1]
         pad_amount = (16 - (time_steps % 16)) % 16
         if pad_amount > 0:audio = F.pad(audio, (0, pad_amount))
+        # plot_pqmf_bands(audio,48000,pqmf,n_bands)
         
         draw_wave(audio[0][0].to("cpu"),"real")
         save_audio(audio[0].to("cpu"),48000,"real")
@@ -53,22 +57,26 @@ with torch.no_grad():
 
         pqmf_audio1 = model.decode_audio(pqmf_audio1)
         a = model.pqmf.inverse(pqmf_audio1)
+        # plot_pqmf_bands(a,48000,pqmf,n_bands)
         draw_wave(a[0][0].to("cpu"),f"fake_audio_layer1")
         save_audio(a[0].to("cpu"),48000,f"fake_audio_layer1")
 
         pqmf_audio1,vq_loss1 = model.vqae2(pqmf_audio)
         pqmf_audio1 = model.decode_audio(pqmf_audio1)
         a = model.pqmf.inverse(pqmf_audio1)
+        # plot_pqmf_bands(a,48000,pqmf,n_bands)
         draw_wave(a[0][0].to("cpu"),f"fake_audio_layer2")
         save_audio(a[0].to("cpu"),48000,f"fake_audio_layer2")
 
         pqmf_audio1,vq_loss1 = model.vqae3(pqmf_audio)
         pqmf_audio1 = model.decode_audio(pqmf_audio1)
         a = model.pqmf.inverse(pqmf_audio1)
+        # plot_pqmf_bands(a,48000,pqmf,n_bands)
         draw_wave(a[0][0].to("cpu"),f"fake_audio_layer3")
         save_audio(a[0].to("cpu"),48000,f"fake_audio_layer3")
 
         a = model.upsample(pqmf_audio)
+        # plot_pqmf_bands(a,48000,pqmf,n_bands)
         draw_wave(a[0][0].to("cpu"),f"fake_audio_upsample")
         save_audio(a[0].to("cpu"),48000,f"fake_audio_upsample")
 

@@ -239,3 +239,19 @@ def collapse_and_duration(phoneme_tensor):
     collapsed_list.append(duration)
 
     return collapsed_list
+
+def plot_pqmf_bands(audio, sr, pqmf_model, num_bands):
+    # Pass the audio through the PQMF forward process
+    pqmf_bands = pqmf_model(audio)  # Add batch dimension
+    time = torch.linspace(0, audio.shape[-1] / sr , audio.shape[-1] // num_bands)
+
+    # Plot each band
+    fig, axs = plt.subplots(num_bands, 1, figsize=(10, 2 * num_bands))
+    for i in range(num_bands):
+        axs[i].plot(time, pqmf_bands[0, i, :].cpu().numpy(), label=f"Band {i + 1}")
+        axs[i].set_ylabel("Amplitude")
+        axs[i].legend(loc="upper right")
+    axs[-1].set_xlabel("Time (s)")
+    plt.tight_layout()
+    plt.show()
+    plt.clf()
