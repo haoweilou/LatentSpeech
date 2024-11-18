@@ -275,7 +275,10 @@ class Jukebox(nn.Module):
     def decode_audio(self,x):
         loud = self.loud_gen(x)
         wave = self.wave_gen(x)
-        return torch.tanh(wave) *  self.mod_sigmoid(loud)
+        audio = torch.tanh(wave) *  self.mod_sigmoid(loud)
+        decay_factors = torch.linspace(1.0, 0.01, 16).to("cuda")  # Adjust range as needed
+        audio = audio * decay_factors.view(1, -1, 1)  # Reshape for broadcasting
+        return audio
     
     def forward(self, x):
         pqmf_audio = self.pqmf(x)
