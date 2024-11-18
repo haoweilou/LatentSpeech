@@ -255,3 +255,49 @@ def plot_pqmf_bands(audio, sr, pqmf_model, num_bands):
     plt.tight_layout()
     plt.show()
     plt.clf()
+
+
+# Function to compute the Short-Time Fourier Transform (STFT) for batch inputs
+def compute_stft_batch(audio, n_fft=1024, hop_length=None):
+    if hop_length is None:
+        hop_length = n_fft // 4
+    batch_size, _, time_steps = audio.shape
+    audio = audio.view(batch_size, time_steps)  # Remove channel dimension for STFT
+    stft = torch.stft(
+        audio,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        return_complex=True
+    )
+    return stft
+
+# Function to compute the Inverse STFT for batch inputs
+def compute_istft_batch(stft, n_fft=1024, hop_length=None):
+    if hop_length is None:
+        hop_length = n_fft // 4
+    batch_size, freq_bins, frames = stft.shape[:3]
+    audio = torch.istft(
+        stft,
+        n_fft=n_fft,
+        hop_length=hop_length
+    )
+    return audio.view(batch_size, 1, -1)  # Add back channel dimension
+
+# Spectral denoising using noise gating for batch inputs
+def spectral_denoise(audio, sr, noise_reduction_factor=10.0, n_fft=1024, hop_length=None):
+    # Compute the STFT
+    stft = compute_stft_batch(audio, n_fft=n_fft, hop_length=hop_length)
+    magnitude = torch.abs(stft)
+    phase = torch.angle(stft)
+
+    # Estimate noise profile (average magnitude from the first few frames for each batch)
+    noise_profile = magnitude[:, :, :10].mean(dim=2, keepdim=True)  # First 10 frames
+
+    # Apply spectral gating (reduce noise)
+    reduced_magnitude = torch.relu(magnitude - noise_reduction_factor * noise_profile)
+
+    # Reconstruct the STFT with the reduced magnitude
+    denoised_stft = reduced_magnitude * torch.exp(1j * phase)
+    denoised_audio = compute_istft_batch(denoised_stft, n_fft=n_fft, hop_length=hop_length)
+
+    return denoised_audio

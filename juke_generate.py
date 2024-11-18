@@ -9,7 +9,7 @@ from function import loadModel,save_audio,draw_wave,draw_heatmap,draw_dot
 from dataset import BakerAudio,pad16,LJSpeechAudio
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 from torch.utils.data import DataLoader
-from function import plot_pqmf_bands
+from function import plot_pqmf_bands,spectral_denoise
 from ae import PQMF
 from params import params
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
