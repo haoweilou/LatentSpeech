@@ -18,7 +18,7 @@ num = 700
 # model_name = "jukebox"
 num = 2000
 model_name = "jukebox_upsampler1"
-num = 1400
+num = 1800
 model_name = "jukebox_upsampler2"
 
 model = loadModel(model,f"{model_name}_{num}","./model/",strict=False)
@@ -30,13 +30,13 @@ base = 0
 dataset = BakerAudio(base+0,base+10,"L:/baker/")
 # dataset = LJSpeechAudio(base+0,base+10,"L:/LJSpeech/")
 loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
-wave_gen = nn.Conv1d(16,16,7,padding=3).to(device)
-loud_gen = nn.Conv1d(16,16,3,1,padding=1).to(device)
-wave_gen = loadModel(wave_gen,"wave_0","./model/")
-loud_gen = loadModel(loud_gen,"loud_0","./model/")
-model.loud_gen = loud_gen 
-model.wave_gen = wave_gen
-
+# wave_gen = nn.Conv1d(16,16,7,padding=3).to(device)
+# loud_gen = nn.Conv1d(16,16,3,1,padding=1).to(device)
+# wave_gen = loadModel(wave_gen,"wave_100","./model/")
+# loud_gen = loadModel(loud_gen,"loud_100","./model/")
+# model.loud_gen = loud_gen 
+# model.wave_gen = wave_gen
+# model.vqae1 = loadModel(model.vqae1,"vqae1_100","./model/")
 with torch.no_grad():
     for audio in tqdm(loader):
         audio = audio.to(device)

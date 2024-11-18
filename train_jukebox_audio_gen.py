@@ -18,21 +18,21 @@ torch.autograd.set_detect_anomaly(True)
 model = Jukebox(params).to(device)
 # model = loadModel(model,f"jukebox_upsampler","./model/",strict=False)
 # model = loadModel(model,f"jukebox_upsampler1_2000","./model/",strict=True)
-model = loadModel(model,f"jukebox_upsampler2_1400","./model/",strict=True)
+model = loadModel(model,f"jukebox_upsampler2_1700","./model/",strict=True)
 wave_gen = model.wave_gen
 loud_gen = model.loud_gen
 
 
-optimizer = optim.Adam(list(loud_gen.parameters())+list(wave_gen.parameters()),lr=0.001)
+optimizer = optim.Adam(list(loud_gen.parameters())+list(wave_gen.parameters())+list(model.vqae1.decoder.parameters()),lr=0.0005)
 
 loss_log = pd.DataFrame({"total_loss":[], "feature_loss":[]})
 dataset1 = BakerAudio(0,10000)
 dataset2 = LJSpeechAudio(0,10000)
 dataset = ConcatDataset([dataset1, dataset2])
 
-batch_size = 32
+batch_size = 16
 loader = DataLoader(dataset,batch_size=batch_size,collate_fn=dataset1.collate,drop_last=True,shuffle=True)
-epochs = 3001
+epochs = 2001
 model_name = "wavegen"
 
 for epoch in range(epochs):
@@ -44,11 +44,10 @@ for epoch in range(epochs):
         time_steps = audio.shape[-1]
         pad_amount = (16 - (time_steps % 16)) % 16
         if pad_amount > 0:audio = F.pad(audio, (0, pad_amount))
-        with torch.no_grad():
-            pqmf_audio = model.pqmf(audio)
-            audio_embed,_ = model.vqae1(pqmf_audio)
-            audio_embed,pqmf_audio = model.equal_size(audio_embed,pqmf_audio)
-            
+        # with torch.no_grad(): 
+        pqmf_audio = model.pqmf(audio)
+        audio_embed,_ = model.vqae1(pqmf_audio)
+        audio_embed,pqmf_audio = model.equal_size(audio_embed,pqmf_audio)
         loud = loud_gen(audio_embed)
         wave = wave_gen(audio_embed)
         pqmf_audio1 = torch.tanh(wave) *  model.mod_sigmoid(loud)
@@ -67,6 +66,7 @@ for epoch in range(epochs):
     if epoch % 100 == 0:
         saveModel(loud_gen,f"loud_{epoch}","./model/")
         saveModel(wave_gen,f"wave_{epoch}","./model/")
+        saveModel(model.vqae1,f"vqae1_{epoch}","./model/")
 
 
     loss_log.loc[len(loss_log.index)] = [loss_val/len(loader),audio_loss_/len(loader)]
