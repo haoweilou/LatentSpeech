@@ -249,6 +249,18 @@ class Jukebox(nn.Module):
         pqmf_audio = self.vqae1.decoder(z1q)
         pqmf_audio = self.decode_audio(pqmf_audio)
         return self.pqmf.inverse(pqmf_audio)
+    
+    def upsample1(self,x,upsampler):
+        z3q = self.vqae3.encode(x)
+        z1q_f = upsampler(z3q.detach())#3=>2
+        z1q,_ = self.vqae1.quant(z1q_f)
+
+        # z2q = self.vqae2.encode(x)
+        # pqmf_audio = self.vqae2.decoder(z2q)
+
+        pqmf_audio = self.vqae1.decoder(z1q)
+        pqmf_audio = self.decode_audio(pqmf_audio)
+        return self.pqmf.inverse(pqmf_audio)
 
     def train_sampler(self,x):
         pqmf_audio = self.pqmf(x)

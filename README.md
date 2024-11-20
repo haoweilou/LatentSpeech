@@ -20,6 +20,6 @@ scp trainvqae_init.py codebook model.py haoweilou@drstrange.cse.unsw.edu.au:~/La
 # Generate a codebook 
 python visualize.py
 
-scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/loud_100.pth  .\model
-scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/wave_100.pth  .\model
-scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/vqae1_100.pth  .\model
+scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/loud_600.pth  .\model
+scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/wave_600.pth  .\model
+scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/vqae1_600.pth  .\model

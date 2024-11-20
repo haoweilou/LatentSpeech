@@ -1,4 +1,4 @@
-from jukebox import Jukebox
+from jukebox import Jukebox,UpSampler
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -19,7 +19,7 @@ num = 700
 # model_name = "jukebox"
 num = 2000
 model_name = "jukebox_upsampler1"
-num = 1800
+num = 2500
 model_name = "jukebox_upsampler2"
 
 model = loadModel(model,f"{model_name}_{num}","./model/",strict=False)
@@ -27,19 +27,24 @@ from sklearn.decomposition import PCA
 
 pca = PCA(n_components=2)
 # finetune = WaveNet(num_layers=20).to(device)
-base = 0
+base =0
 dataset = BakerAudio(base+0,base+10,"L:/baker/")
 # dataset = LJSpeechAudio(base+0,base+10,"L:/LJSpeech/")
 loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
+# wave_gen_num = 600
 # wave_gen = nn.Conv1d(16,16,7,padding=3).to(device)
 # loud_gen = nn.Conv1d(16,16,3,1,padding=1).to(device)
-# wave_gen = loadModel(wave_gen,"wave_100","./model/")
-# loud_gen = loadModel(loud_gen,"loud_100","./model/")
+# wave_gen = loadModel(wave_gen,f"wave_{wave_gen_num}","./model/")
+# loud_gen = loadModel(loud_gen,f"loud_{wave_gen_num}","./model/")
 # model.loud_gen = loud_gen 
 # model.wave_gen = wave_gen
-# model.vqae1 = loadModel(model.vqae1,"vqae1_100","./model/")
+# model.vqae1 = loadModel(model.vqae1,f"vqae1_{wave_gen_num}","./model/")
 n_bands = 4
 pqmf = PQMF(100,n_bands).to(device)
+
+upsampler = UpSampler(64,256,16,16).to(device)
+upsampler = loadModel(upsampler,"upsampler3_2000","./model/")
+
 with torch.no_grad():
     for audio in tqdm(loader):
         audio = audio.to(device)
@@ -79,6 +84,12 @@ with torch.no_grad():
         # plot_pqmf_bands(a,48000,pqmf,n_bands)
         draw_wave(a[0][0].to("cpu"),f"fake_audio_upsample")
         save_audio(a[0].to("cpu"),48000,f"fake_audio_upsample")
+
+
+        a = model.upsample1(pqmf_audio,upsampler)
+        # plot_pqmf_bands(a,48000,pqmf,n_bands)
+        draw_wave(a[0][0].to("cpu"),f"fake_audio_upsample3")
+        save_audio(a[0].to("cpu"),48000,f"fake_audio_upsample3")
 
         # z = model.encoder1(pqmf_audio)
         # z = z.permute(0,2,1).reshape(-1,64)
