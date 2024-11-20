@@ -45,6 +45,13 @@ pqmf = PQMF(100,n_bands).to(device)
 upsampler = UpSampler(64,256,16,16).to(device)
 upsampler = loadModel(upsampler,"upsampler3_2000","./model/")
 
+upsampler =  nn.Sequential(
+    UpSampler(64,256,num_res_layer=12,ratio=4),
+    UpSampler(64,256,num_res_layer=12,ratio=4)
+).to(device)
+# upsampler = loadModel(upsampler,"upsampler3_500","./model/")
+upsampler = loadModel(upsampler,"upsampler3_500","./model/")
+
 with torch.no_grad():
     for audio in tqdm(loader):
         audio = audio.to(device)

@@ -25,19 +25,20 @@ upsampler =  nn.Sequential(
     UpSampler(64,256,num_res_layer=12,ratio=4),
     UpSampler(64,256,num_res_layer=12,ratio=4)
 ).to(device)
+upsampler = loadModel(upsampler,"upsampler3_500","./model/")
+
 optimizer = optim.Adam(upsampler.parameters(),lr=0.0003)
 loss_log = pd.DataFrame({"total_loss":[], "feature_loss":[]})
-dataset1 = BakerAudio(0,1000)
+dataset1 = BakerAudio(0,10000)
 # dataset = ConcatDataset([dataset1])
-# dataset2 = LJSpeechAudio(0,10000)
-# dataset = ConcatDataset([dataset1, dataset2])
-dataset = ConcatDataset([dataset1])
-
+dataset2 = LJSpeechAudio(0,10000)
+dataset = ConcatDataset([dataset1, dataset2])
+# dataset = ConcatDataset([dataset1])
+model_name = "upsampler3"
 
 batch_size = 32
 loader = DataLoader(dataset,batch_size=batch_size,collate_fn=dataset1.collate,drop_last=True,shuffle=True)
 epochs = 2001
-model_name = "upsampler3"
 
 for epoch in range(epochs):
     loss_val = 0
@@ -53,7 +54,6 @@ for epoch in range(epochs):
             z1q = model.vqae1.encode(pqmf_audio)
             z3q = model.vqae3.encode(pqmf_audio)
         z1q_f = upsampler(z3q.detach())
-
         z1q_f,z1q = model.equal_size(z1q_f,z1q)
         feature_loss = F.mse_loss(z1q_f,z1q)
         loss =  feature_loss
