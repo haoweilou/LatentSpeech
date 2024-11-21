@@ -19,7 +19,7 @@ num = 700
 # model_name = "jukebox"
 num = 2000
 model_name = "jukebox_upsampler1"
-num = 2500
+num = 3000
 model_name = "jukebox_upsampler2"
 
 model = loadModel(model,f"{model_name}_{num}","./model/",strict=False)
@@ -49,8 +49,8 @@ upsampler =  nn.Sequential(
     UpSampler(64,256,num_res_layer=12,ratio=4),
     UpSampler(64,256,num_res_layer=12,ratio=4)
 ).to(device)
-# upsampler = loadModel(upsampler,"upsampler3_500","./model/")
-upsampler = loadModel(upsampler,"upsampler3_500","./model/")
+# upsampler = loadModel(upsampler,"upsampler3_500","./model/") #500 for 1k sentence
+upsampler = loadModel(upsampler,"upsampler3_100","./model/") #0 for 20k sentence
 
 with torch.no_grad():
     for audio in tqdm(loader):
