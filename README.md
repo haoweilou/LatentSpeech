@@ -28,3 +28,6 @@ user id: hl6114
 /g/data/ey69/hw
 ssh hl6114@gadi.nci.org.au
 scp hl6114@gadi.nci.org.au:/g/data/ey69/haowei
+
+# Training Time Record
+V100: 1.7s, two 12,1024 upsampler, 500+MB

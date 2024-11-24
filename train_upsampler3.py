@@ -21,10 +21,11 @@ model = Jukebox(params).to(device)
 # model = loadModel(model,f"jukebox_upsampler2_3000","./model/",strict=True)
 
 
-upsampler =  nn.Sequential(
-    UpSampler(64,256,num_res_layer=12,ratio=4),
-    UpSampler(64,256,num_res_layer=12,ratio=4)
-).to(device)
+# upsampler =  nn.Sequential(
+#     UpSampler(64,1024,num_res_layer=12,ratio=4),
+#     UpSampler(64,1024,num_res_layer=12,ratio=4)
+# ).to(device)
+upsampler = UpSampler(64,1024,num_res_layer=16,ratio=16).to(device)
 # upsampler = loadModel(upsampler,"upsampler3_500","./model/")
 
 optimizer = optim.Adam(upsampler.parameters(),lr=0.0003)

@@ -23,10 +23,6 @@ fi
 # Activate virtual environment
 source venv/bin/activate
 
-echo "Current working directory: $(pwd)"
-echo "Listing files in /g/data/ey69/haowei/baker/Wave:"
-ls -l /g/data/ey69/haowei/baker/Wave
-
 # Run the Python script
 echo "Starting Python script..."
 python3 train_upsampler3.py
