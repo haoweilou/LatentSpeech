@@ -18,7 +18,7 @@ torch.autograd.set_detect_anomaly(True)
 model = Jukebox(params).to(device)
 # model = loadModel(model,f"jukebox_upsampler","./model/",strict=False)
 # model = loadModel(model,f"jukebox_upsampler1_2000","./model/",strict=True)
-# model = loadModel(model,f"jukebox_upsampler2_3000","./model/",strict=True)
+model = loadModel(model,f"jukebox_upsampler2_3000","./model/",strict=True)
 
 
 # upsampler =  nn.Sequential(

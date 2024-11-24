@@ -28,7 +28,7 @@ from sklearn.decomposition import PCA
 pca = PCA(n_components=2)
 # finetune = WaveNet(num_layers=20).to(device)
 base =0
-dataset = BakerAudio(base+0,base+10,"L:/baker/")
+dataset = BakerAudio(base+0,base+10,"D:/baker/")
 # dataset = LJSpeechAudio(base+0,base+10,"L:/LJSpeech/")
 loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
 # wave_gen_num = 600
@@ -42,15 +42,18 @@ loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=F
 n_bands = 4
 pqmf = PQMF(100,n_bands).to(device)
 
-upsampler = UpSampler(64,256,16,16).to(device)
-upsampler = loadModel(upsampler,"upsampler3_2000","./model/")
+# upsampler = UpSampler(64,256,16,16).to(device)
+# upsampler = loadModel(upsampler,"upsampler3_2000","./model/")
 
-upsampler =  nn.Sequential(
-    UpSampler(64,256,num_res_layer=12,ratio=4),
-    UpSampler(64,256,num_res_layer=12,ratio=4)
-).to(device)
-# upsampler = loadModel(upsampler,"upsampler3_500","./model/") #500 for 1k sentence
-upsampler = loadModel(upsampler,"upsampler3_100","./model/") #0 for 20k sentence
+upsampler = UpSampler(64,1024,16,16).to(device)
+upsampler = loadModel(upsampler,"upsampler3_100","./model/")
+
+# upsampler =  nn.Sequential(
+#     UpSampler(64,256,num_res_layer=12,ratio=4),
+#     UpSampler(64,256,num_res_layer=12,ratio=4)
+# ).to(device)
+# # upsampler = loadModel(upsampler,"upsampler3_500","./model/") #500 for 1k sentence
+# upsampler = loadModel(upsampler,"upsampler3_100","./model/") #0 for 20k sentence
 
 with torch.no_grad():
     for audio in tqdm(loader):

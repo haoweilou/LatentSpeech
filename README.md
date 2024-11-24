@@ -31,3 +31,4 @@ scp hl6114@gadi.nci.org.au:/g/data/ey69/haowei
 
 # Training Time Record
 V100: 1.7s, two 12,1024 upsampler, 500+MB
+V100: 1.7s, one 12,1024 upsampler, 360+MB
