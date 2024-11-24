@@ -18,22 +18,22 @@ torch.autograd.set_detect_anomaly(True)
 model = Jukebox(params).to(device)
 # model = loadModel(model,f"jukebox_upsampler","./model/",strict=False)
 # model = loadModel(model,f"jukebox_upsampler1_2000","./model/",strict=True)
-model = loadModel(model,f"jukebox_upsampler2_2000","./model/",strict=True)
+# model = loadModel(model,f"jukebox_upsampler2_3000","./model/",strict=True)
 
 
 upsampler =  nn.Sequential(
     UpSampler(64,256,num_res_layer=12,ratio=4),
     UpSampler(64,256,num_res_layer=12,ratio=4)
 ).to(device)
-upsampler = loadModel(upsampler,"upsampler3_500","./model/")
+# upsampler = loadModel(upsampler,"upsampler3_500","./model/")
 
 optimizer = optim.Adam(upsampler.parameters(),lr=0.0003)
 loss_log = pd.DataFrame({"total_loss":[], "feature_loss":[]})
-dataset1 = BakerAudio(0,10000)
+dataset1 = BakerAudio(0,1000,path="/scratch/ey69/hl6114/baker/")
 # dataset = ConcatDataset([dataset1])
-dataset2 = LJSpeechAudio(0,10000)
-dataset = ConcatDataset([dataset1, dataset2])
-# dataset = ConcatDataset([dataset1])
+# dataset2 = LJSpeechAudio(0,10000,path="/g/data/ey69/haowei/LJSpeech/")
+# dataset = ConcatDataset([dataset1, dataset2])
+dataset = ConcatDataset([dataset1])
 model_name = "upsampler3"
 
 batch_size = 32

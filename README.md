@@ -23,3 +23,8 @@ python visualize.py
 scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/loud_600.pth  .\model
 scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/wave_600.pth  .\model
 scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/vqae1_600.pth  .\model
+
+user id: hl6114
+/g/data/ey69/hw
+ssh hl6114@gadi.nci.org.au
+scp hl6114@gadi.nci.org.au:/g/data/ey69/haowei
