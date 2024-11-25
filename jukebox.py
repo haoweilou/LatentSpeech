@@ -166,7 +166,44 @@ class UpSampler(nn.Module):
         
     def forward(self, x):
         return self.model(x)
+
+class ResNet(nn.Module):
+    def __init__(self, in_channels, kernel_size=3, dilation=1):
+        super().__init__()
+        self.conv1 = nn.Conv1d(in_channels, in_channels, kernel_size=kernel_size, dilation=dilation, padding=dilation)
+        self.conv2 = nn.Conv1d(in_channels, in_channels, kernel_size=kernel_size, dilation=dilation, padding=dilation)
+        self.activation = nn.ReLU()
+
+    def forward(self, x):
+        residual = x
+        x = self.activation(self.conv1(x))
+        x = self.conv2(x)
+        return self.activation(x + residual)
     
+class UpSampler3(nn.Module):
+    def __init__(self,feature_dim, hidden_dim, num_res_layer,ratio:int=4):
+        super(UpSampler3, self).__init__()
+        self.pre_upsample_conv = nn.Conv1d(feature_dim, hidden_dim, kernel_size=3, padding=1)
+        self.upsample = nn.ConvTranspose1d(hidden_dim, hidden_dim, kernel_size=ratio, stride=ratio)
+        self.residual_blocks = nn.ModuleList([
+            ResNet(hidden_dim) for _ in range(num_res_layer)
+        ])
+        self.post_upsample_conv = nn.Conv1d(hidden_dim, feature_dim, kernel_size=3, padding=1)
+        self.activation = nn.LeakyReLU(0.2)  # Add activation after pre-convolution
+
+    
+    def forward(self, x):
+        x = self.activation(self.pre_upsample_conv(x))
+        
+        x = self.upsample(x)
+        x = self.activation(x)  
+        
+        for block in self.residual_blocks:
+            x = block(x)
+        
+        x = self.post_upsample_conv(x)
+        return x
+
 class VQAE(nn.Module):
     """Some Information about VQAE"""
     def __init__(self,ratios):
