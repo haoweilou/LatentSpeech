@@ -279,7 +279,7 @@ class Jukebox(nn.Module):
         z2q,_ = self.vqae2.quant(z2q_f)
 
         # z2q = self.vqae2.encode(x)
-        # pqmf_audio = self.vqae2.decoder(z2q)
+        pqmf_audio = self.vqae2.decoder(z2q)
 
         z1q = self.upsampler1(z2q.detach())#2=>1
         z1q,_ = self.vqae1.quant(z1q)

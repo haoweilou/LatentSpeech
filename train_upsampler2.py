@@ -16,30 +16,28 @@ import pandas as pd
 torch.autograd.set_detect_anomaly(True)
 
 model = Jukebox(params).to(device)
-# model = loadModel(model,f"jukebox_upsampler","./model/",strict=False)
-# model = loadModel(model,f"jukebox_upsampler1_2000","./model/",strict=True)
 model = loadModel(model,f"jukebox_upsampler2_3000","./model/",strict=True)
-
 
 # upsampler =  nn.Sequential(
 #     UpSampler(64,1024,num_res_layer=12,ratio=4),
 #     UpSampler(64,1024,num_res_layer=12,ratio=4)
 # ).to(device)
-upsampler = UpSampler3(64,512,num_res_layer=16,ratio=16).to(device)
+upsampler = UpSampler3(64,1024,num_res_layer=12,ratio=4).to(device)
+upsampler = loadModel(upsampler,f"upsampler2_70","./model/",strict=True)
+
 # upsampler = loadModel(upsampler,"upsampler3_500","./model/")
 
 optimizer = optim.Adam(upsampler.parameters(),lr=0.0003)
 loss_log = pd.DataFrame({"total_loss":[], "feature_loss":[]})
-dataset1 = BakerAudio(0,1000,path="/scratch/ey69/hl6114/baker/")
 # dataset = ConcatDataset([dataset1])
-# dataset2 = LJSpeechAudio(0,10000,path="/g/data/ey69/haowei/LJSpeech/")
-# dataset = ConcatDataset([dataset1, dataset2])
-dataset = ConcatDataset([dataset1])
-model_name = "upsampler3"
-
+dataset1 = BakerAudio(0,10000,path="/scratch/ey69/hl6114/baker/")
+dataset2 = LJSpeechAudio(0,10000,path="/scratch/ey69/haowei/LJSpeech/")
+dataset = ConcatDataset([dataset1, dataset2])
+# dataset = ConcatDataset([dataset1])
+model_name = "upsampler2"
 batch_size = 32
 loader = DataLoader(dataset,batch_size=batch_size,collate_fn=dataset1.collate,drop_last=True,shuffle=True)
-epochs = 2001
+epochs = 200+1
 
 for epoch in range(epochs):
     loss_val = 0
@@ -52,22 +50,21 @@ for epoch in range(epochs):
         if pad_amount > 0:audio = F.pad(audio, (0, pad_amount))
         pqmf_audio = model.pqmf(audio)
         with torch.no_grad():
-            z1q = model.vqae1.encode(pqmf_audio)
+            z2q = model.vqae2.encode(pqmf_audio)
             z3q = model.vqae3.encode(pqmf_audio)
-        z1q_f = upsampler(z3q.detach())
-        z1q_f,z1q = model.equal_size(z1q_f,z1q)
-        feature_loss = F.mse_loss(z1q_f,z1q)
+        z2q_f = upsampler(z3q.detach())
+        z2q_f,z2q = model.equal_size(z2q_f,z2q)
+        feature_loss = F.mse_loss(z2q_f,z2q)
         loss =  feature_loss
         loss_val += loss.item()
         feature_loss_ += feature_loss.item()
-
         loss.backward()
         # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
     
     print(f"Epoch: {epoch} Feature Loss: {feature_loss_/len(loader):.03f} Total: {loss_val/len(loader):.03f}")
     
-    if epoch % 100 == 0:
+    if epoch % 5 == 0:
         saveModel(upsampler,f"{model_name}_{epoch}","./model/")
 
     loss_log.loc[len(loss_log.index)] = [loss_val/len(loader),feature_loss_/len(loader)]

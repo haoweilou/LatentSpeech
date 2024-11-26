@@ -29,7 +29,9 @@ from sklearn.decomposition import PCA
 
 pca = PCA(n_components=2)
 # finetune = WaveNet(num_layers=20).to(device)
-base = 0
+import random
+
+base = random.randint(1,10000)
 dataset = BakerAudio(base+0,base+10,"D:/baker/")
 # dataset = LJSpeechAudio(base+0,base+10,"L:/LJSpeech/")
 loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
@@ -54,13 +56,19 @@ pqmf = PQMF(100,n_bands).to(device)
 # upsampler = loadModel(upsampler,"upsampler3_200","./model/")
 
 
-upsampler =  nn.Sequential(
-    UpSampler(64,256,num_res_layer=12,ratio=4),
-    UpSampler(64,256,num_res_layer=12,ratio=4)
-).to(device)
-upsampler = loadModel(upsampler,"upsampler3_500","./model/") #500 for 1k sentence
+# upsampler =  nn.Sequential(
+#     UpSampler(64,256,num_res_layer=12,ratio=4),
+#     UpSampler(64,256,num_res_layer=12,ratio=4)
+# ).to(device)
+# upsampler = loadModel(upsampler,"upsampler3_500","./model/") #500 for 1k sentence
 # upsampler = loadModel(upsampler,"upsampler3_100","./model/") #0 for 20k sentence
+# upsampler = UpSampler3(64,512,num_res_layer=16,ratio=16).to(device)
+# upsampler = loadModel(upsampler,"upsampler3_700","./model/") #500 for 1k sentence
+upsampler = UpSampler3(64,1024,num_res_layer=12,ratio=4).to(device)
+upsampler = loadModel(upsampler,"upsampler2_60","./model")
 
+upsampler3 = UpSampler3(64,512,num_res_layer=16,ratio=16).to(device)
+upsampler3 = loadModel(upsampler3,"upsampler3_700","./model")
 with torch.no_grad():
     for audio in tqdm(loader):
         audio = audio.to(device)
@@ -101,11 +109,18 @@ with torch.no_grad():
         draw_wave(a[0][0].to("cpu"),f"fake_audio_upsample")
         save_audio(a[0].to("cpu"),48000,f"fake_audio_upsample")
 
-
-        a = model.upsample1(pqmf_audio,upsampler)
+        model.upsampler2 = upsampler
+        a = model.upsample(pqmf_audio)
+        # a = model.upsample1(pqmf_audio,upsampler)
         # plot_pqmf_bands(a,48000,pqmf,n_bands)
+        draw_wave(a[0][0].to("cpu"),f"fake_audio_upsample2")
+        save_audio(a[0].to("cpu"),48000,f"fake_audio_upsample2")
+
+
+        a = model.upsample1(pqmf_audio,upsampler3)
         draw_wave(a[0][0].to("cpu"),f"fake_audio_upsample3")
         save_audio(a[0].to("cpu"),48000,f"fake_audio_upsample3")
+        
 
         # z = model.encoder1(pqmf_audio)
         # z = z.permute(0,2,1).reshape(-1,64)
