@@ -4,7 +4,7 @@
 #PBS -q gpuvolta               
 #PBS -l ncpus=12
 #PBS -l ngpus=1
-#PBS -l mem=16384MB
+#PBS -l mem=40GB
 #PBS -l walltime=24:00:00      
 #PBS -j oe                     
 #PBS -M haowei.lou@unsw.edu.au
