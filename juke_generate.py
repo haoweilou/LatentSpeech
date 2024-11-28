@@ -32,8 +32,8 @@ pca = PCA(n_components=2)
 import random
 
 base = random.randint(1,10000)
-dataset = BakerAudio(base+0,base+10,"D:/baker/")
-# dataset = LJSpeechAudio(base+0,base+10,"L:/LJSpeech/")
+# dataset = BakerAudio(base+0,base+10,"D:/baker/")
+dataset = LJSpeechAudio(base+0,base+10,"L:/LJSpeech/")
 loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
 # wave_gen_num = 600
 # wave_gen = nn.Conv1d(16,16,7,padding=3).to(device)
@@ -65,7 +65,7 @@ pqmf = PQMF(100,n_bands).to(device)
 # upsampler = UpSampler3(64,512,num_res_layer=16,ratio=16).to(device)
 # upsampler = loadModel(upsampler,"upsampler3_700","./model/") #500 for 1k sentence
 upsampler = UpSampler3(64,1024,num_res_layer=12,ratio=4).to(device)
-upsampler = loadModel(upsampler,"upsampler2_60","./model")
+upsampler = loadModel(upsampler,"upsampler2_45","./model")
 
 upsampler3 = UpSampler3(64,512,num_res_layer=16,ratio=16).to(device)
 upsampler3 = loadModel(upsampler3,"upsampler3_700","./model")

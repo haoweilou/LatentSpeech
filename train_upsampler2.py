@@ -23,7 +23,7 @@ model = loadModel(model,f"jukebox_upsampler2_3000","./model/",strict=True)
 #     UpSampler(64,1024,num_res_layer=12,ratio=4)
 # ).to(device)
 upsampler = UpSampler3(64,1024,num_res_layer=12,ratio=4).to(device)
-upsampler = loadModel(upsampler,f"upsampler2_70","./model/",strict=True)
+upsampler = loadModel(upsampler,f"upsampler2_45","./model/",strict=True)
 
 # upsampler = loadModel(upsampler,"upsampler3_500","./model/")
 
@@ -31,7 +31,7 @@ optimizer = optim.Adam(upsampler.parameters(),lr=0.0003)
 loss_log = pd.DataFrame({"total_loss":[], "feature_loss":[]})
 # dataset = ConcatDataset([dataset1])
 dataset1 = BakerAudio(0,10000,path="/scratch/ey69/hl6114/baker/")
-dataset2 = LJSpeechAudio(0,10000,path="/scratch/ey69/haowei/LJSpeech/")
+dataset2 = LJSpeechAudio(0,10000,path="/scratch/ey69/hl6114/LJSpeech/")
 dataset = ConcatDataset([dataset1, dataset2])
 # dataset = ConcatDataset([dataset1])
 model_name = "upsampler2"
@@ -39,7 +39,7 @@ batch_size = 32
 loader = DataLoader(dataset,batch_size=batch_size,collate_fn=dataset1.collate,drop_last=True,shuffle=True)
 epochs = 200+1
 
-for epoch in range(epochs):
+for epoch in range(46,epochs):
     loss_val = 0
     feature_loss_ = 0
     for audio in tqdm(loader):
