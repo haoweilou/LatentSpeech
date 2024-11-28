@@ -841,3 +841,101 @@ class Upsampler(nn.Module):
         level1, upsampled_level1 = self.equal_size(level1,upsampled_level1)
         level2, upsampled_level2 = self.equal_size(level2,upsampled_level2)
         return upsampled_level1, upsampled_level2
+    
+class RVQ(nn.Module):
+    """Some Information about RVQ"""
+    def __init__(self,num_stages, num_codebooks, embedding_dim):
+        super(RVQ, self).__init__()
+        self.num_stages = num_stages
+        self.embedding_dim = embedding_dim
+        self.codebooks = nn.ModuleList([
+            nn.Embedding(num_codebooks, embedding_dim) for _ in range(num_stages)
+        ])
+
+        # Initialize the codebooks with small random values
+        for codebook in self.codebooks:
+            nn.init.uniform_(codebook.weight, -1 / num_codebooks, 1 / num_codebooks)
+
+    def forward(self, z_e):
+        b,t,c = z_e.shape
+        z_e = z_e.reshape(-1,c)       
+        residual = z_e  # Start with the input
+        z_q = torch.zeros_like(z_e)  # Accumulate quantized outputs
+        quantization_indices = []  # Store indices for all stages
+        vq_loss = 0.0  # Initialize vector quantization loss
+        for stage, codebook in enumerate(self.codebooks):
+            # Compute distances between residuals and codebook entries
+            distances = torch.cdist(residual.unsqueeze(1), codebook.weight.unsqueeze(0), p=2)
+            
+            # Find nearest codeword for each residual
+            nearest_idx = torch.argmin(distances, dim=2).squeeze(1)
+            quantization_indices.append(nearest_idx)
+
+            # Retrieve the quantized vector
+            stage_quantized = codebook(nearest_idx)
+
+            # Update quantized output
+            z_q += stage_quantized
+
+            # Compute VQ loss (commitment loss) for this stage
+            vq_loss += F.mse_loss(stage_quantized.detach(), residual)
+
+            # Update residual
+            residual = residual - stage_quantized
+
+        # Scale the total VQ loss
+        vq_loss = vq_loss / self.num_stages
+        z_q = z_q.reshape(b,t,c)
+        return z_q, vq_loss, quantization_indices
+    
+from jukebox import Encoder,Decoder
+class RVQAE(nn.Module):
+    """Some Information about RVQAE"""
+    def __init__(self,params,ratios):
+        super(RVQAE, self).__init__()
+        encoders = []
+        decoders = []
+        self.pqmf_channel = 16
+        self.hidden_dim = 64
+        self.spec_distance = AudioDistance(params,params.log_epsilon)
+        self.pqmf = PQMF(100,n_band=self.pqmf_channel)
+
+        for i,r in enumerate(ratios):
+            if i == 0:
+                encoder = Encoder(self.pqmf_channel,self.hidden_dim,self.hidden_dim,r)
+                decoder = Decoder(self.hidden_dim,self.pqmf_channel,self.hidden_dim,r)
+            else: 
+                encoder = Encoder(self.hidden_dim,self.hidden_dim,self.hidden_dim,r)
+                decoder = Decoder(self.hidden_dim,self.hidden_dim,self.hidden_dim,r)
+            encoders.append(encoder)
+            decoders.append(decoder)
+        self.rvq_layer = RVQ(12,1024,self.hidden_dim)
+        decoders = decoders[::-1]
+        self.encoder = nn.Sequential(*encoders)
+        self.decoder = nn.Sequential(*decoders)
+
+    def encode(self,x):
+        pqmf_audio = self.pqmf(x)
+        z = self.encoder(pqmf_audio)
+        zq,_ = self.quant(z)
+        return zq
+    
+    def quant(self,z):
+        z = z.permute(0,2,1)  
+        zq,vq_loss,_ = self.rvq_layer(z)
+        return zq.permute(0,2,1), vq_loss
+    
+    def equal_size(self,a:torch.Tensor,b:torch.Tensor):
+        min_size = min(a.shape[-1],b.shape[-1])
+        a_truncated = a[..., :min_size]  # Keep all dimensions except truncate last dimension
+        b_truncated = b[..., :min_size]  # Same truncation for b
+        return a_truncated, b_truncated
+    
+    def forward(self, x):
+        pqmf_audio = self.pqmf(x)
+        z = self.encoder(pqmf_audio)
+        zq,vq_loss = self.quant(z)
+        x_f = self.decoder(zq)
+        x_f,pqmf_audio = self.equal_size(x_f,pqmf_audio)
+        audio_loss =  self.spec_distance(x_f,pqmf_audio)
+        return x_f, audio_loss, vq_loss

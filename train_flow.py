@@ -19,13 +19,13 @@ ae = AE(params).to(device)
 ae = loadModel(ae,"ae9k16","./model")
 
 feature_dim = 16
-hid_dim = 64
-num_flow_layers  = 24
+hid_dim = 256
+num_flow_layers  = 12
 # flow_module = FlowBlock(feature_dim, num_flow_layers).to(device)
 encoder = Block(feature_dim,hid_dim, num_flow_layers).to(device)
 decoder = Block(feature_dim,hid_dim, num_flow_layers).to(device)
 
-vq_layer = Quantize(feature_dim,2048).to(device)
+vq_layer = Quantize(feature_dim,1024).to(device)
 print(vq_layer)
 
 optimizer = optim.Adam(list(encoder.parameters()) + list(decoder.parameters()) + list(vq_layer.parameters()),lr=0.0001)
@@ -37,7 +37,7 @@ dataset = ConcatDataset([dataset1])
 
 batch_size = 32
 loader = DataLoader(dataset,batch_size=batch_size,collate_fn=dataset1.collate,drop_last=True,shuffle=True)
-epochs = 501
+epochs = 1001
 model_name = "flow"
 
 for epoch in range(epochs):
@@ -76,7 +76,7 @@ for epoch in range(epochs):
     
     print(f"Epoch: {epoch} Det Loss: {det_loss_/len(loader):.03f} VQ Loss: {vq_loss_/len(loader):.03f} Feature Loss: {feature_loss_/len(loader):.03f} Total: {loss_val/len(loader):.03f}")
     
-    if epoch % 50 == 0:
+    if epoch % 100 == 0:
         saveModel(encoder,f"{model_name}_encoder_{epoch}","./model/")
         saveModel(decoder,f"{model_name}_decoder_{epoch}","./model/")
         saveModel(vq_layer,f"{model_name}_vq_{epoch}","./model/")

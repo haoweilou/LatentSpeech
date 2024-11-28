@@ -33,14 +33,15 @@ ae = AE(params).to(device)
 ae = loadModel(ae,"ae9k16","./model")
 
 feature_dim = 16
-hid_dim = 64
-num_flow_layers  = 24
-num = 100
+hid_dim = 256
+num_flow_layers  = 12
+num = 600
 # flow_module = FlowBlock(feature_dim, num_flow_layers).to(device)
 encoder = Block(feature_dim,hid_dim, num_flow_layers).to(device)
 decoder = Block(feature_dim,hid_dim, num_flow_layers).to(device)
 
-vq_layer = Quantize(feature_dim,2048).to(device)
+embed_size = 1024
+vq_layer = Quantize(feature_dim,1024).to(device)
 
 encoder = loadModel(encoder,f"flow_encoder_{num}","./model/",strict=True)
 decoder = loadModel(decoder,f"flow_decoder_{num}","./model/",strict=True)
@@ -52,33 +53,38 @@ pca = PCA(n_components=2)
 # finetune = WaveNet(num_layers=20).to(device)
 import random
 
-base = random.randint(1,10000)
-# dataset = BakerAudio(base+0,base+10,"D:/baker/")
+base = random.randint(1,1000)
+dataset = BakerAudio(base+0,base+10,"D:/baker/")
 # # dataset = LJSpeechAudio(base+0,base+10,"L:/LJSpeech/")
-# loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
+loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
 
 n_bands = 16
 pqmf = PQMF(100,n_bands).to(device)
-audio,sr = load_audio("./sample/real.wav")
-audio = audio.unsqueeze(1).to(device)
-print(audio.shape)
+# audio = audio.unsqueeze(1).to(device)
+# print(audio.shape)
 with torch.no_grad():
-    time_steps = audio.shape[-1]
-    pad_amount = (16 - (time_steps % 16)) % 16
-    if pad_amount > 0:audio = F.pad(audio, (0, pad_amount))
-    draw_wave(audio[0][0].to("cpu"),f"real")
+    for audio in tqdm(loader):
+        audio = audio.to(device)
+        time_steps = audio.shape[-1]
+        pad_amount = (16 - (time_steps % 16)) % 16
+        if pad_amount > 0:audio = F.pad(audio, (0, pad_amount))
+        draw_wave(audio[0][0].to("cpu"),f"real")
+        save_audio(audio[0].to("cpu"),48000,f"real")
 
-    z,_ = ae.encode(audio)
-    zq = encoder(z)
-    zq = z.permute(0,2,1) 
-    zq, vq_loss, _ = vq_layer(zq)
-    zq = zq.permute(0,2,1) 
-    zq = decoder(zq)
+        z,_ = ae.encode(audio)
+        zq = encoder(z)
+        zq = z.permute(0,2,1) 
+        zq, vq_loss, _ = vq_layer(zq)
+        zq = zq.permute(0,2,1) 
+        zq = decoder(zq)
 
-    # a,_,_,_ = model(audio)
-    pqmf_audio1 = ae.decode(zq)
+        pqmf_audio1 = ae.decode(zq)
 
-    a = pqmf.inverse(pqmf_audio1)
-    # plot_pqmf_bands(a,48000,pqmf,n_bands)
-    draw_wave(a[0][0].to("cpu"),f"flow")
-    save_audio(a[0].to("cpu"),48000,f"flow")
+        a = pqmf.inverse(pqmf_audio1)
+        draw_wave(a[0][0].to("cpu"),f"flow")
+        save_audio(a[0].to("cpu"),48000,f"flow")
+
+        pqmf_audio1 = ae.decode(z)
+        a = pqmf.inverse(pqmf_audio1)
+        draw_wave(a[0][0].to("cpu"),f"ae")
+        save_audio(a[0].to("cpu"),48000,f"ae")

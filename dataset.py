@@ -80,8 +80,8 @@ class LJSpeechAudio(torch.utils.data.Dataset):
         
     def collate(self, minibatch):
         output = pad_sequence(minibatch,batch_first=True) #Batch,T
-        if output.shape[-1] >= 48000*10:
-            output = output[:,:48000*10]
+        if output.shape[-1] >= 48000*9:
+            output = output[:,:48000*9]
         return output.unsqueeze(1)
 
     def __getitem__(self, index):

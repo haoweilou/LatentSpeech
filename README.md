@@ -33,9 +33,9 @@ scp hl6114@gadi.nci.org.au:/g/data/ey69/haowei
 V100: 1.7s, two 12,1024 upsampler, 500+MB
 V100: 1.7s, one 12,1024 upsampler, 360+MB
 
-scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/flow_encoder_100.pth ./model
-scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/flow_decoder_100.pth ./model
-scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/flow_vq_100.pth ./model
+scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/flow_encoder_200.pth ./model
+scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/flow_decoder_200.pth ./model
+scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/flow_vq_200.pth ./model
 
 # Flow record: 
 feature_dim = 16
@@ -48,3 +48,10 @@ feature_dim = 16
 hid_dim = 64
 num_flow_layers  = 24
 codebox_size = 2048
+vqloss 0.087, Feature Loss 0.066
+
+feature_dim = 16
+hid_dim = 256
+num_flow_layers  = 12
+codebox_size = 1024
+vqloss , Feature Loss 
