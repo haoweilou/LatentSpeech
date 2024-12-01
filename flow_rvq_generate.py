@@ -1,4 +1,3 @@
-from jukebox import Jukebox,UpSampler,UpSampler3
 from tqdm import tqdm
 import torch
 import torch.nn as nn
@@ -21,8 +20,8 @@ from torch.utils.data import DataLoader,ConcatDataset
 from params import params
 from dataset import BakerAudio,LJSpeechAudio
 # from model import VQAESeq
-from flow import AE,FlowBlock,Block
-from ae import Quantize,RVQ
+from flow import AE,Block
+from ae import RVQ
 from tqdm import tqdm
 from function import saveModel,loadModel
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -30,12 +29,13 @@ import pandas as pd
 torch.autograd.set_detect_anomaly(True)
 
 ae = AE(params).to(device)
-ae = loadModel(ae,"ae9k16","./model")
+# ae = loadModel(ae,"ae9k16","./model")
+ae = loadModel(ae,"ae20k16_700","./model")
 
 feature_dim = 16
 hid_dim = 256
 num_flow_layers  = 12
-num = 300
+num = 1000
 # flow_module = FlowBlock(feature_dim, num_flow_layers).to(device)
 encoder = Block(feature_dim,hid_dim, num_flow_layers).to(device)
 decoder = Block(feature_dim,hid_dim, num_flow_layers).to(device)
@@ -55,7 +55,7 @@ import random
 
 base = random.randint(1000,2000)
 dataset = BakerAudio(base+0,base+10,"D:/baker/")
-# # dataset = LJSpeechAudio(base+0,base+10,"L:/LJSpeech/")
+# dataset = LJSpeechAudio(base+0,base+10,"L:/LJSpeech/")
 loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=False,shuffle=False)
 
 n_bands = 16

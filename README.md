@@ -37,6 +37,9 @@ scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/flow_encoder_200.pt
 scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/flow_decoder_200.pth ./model
 scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/flow_vq_200.pth ./model
 
+
+scp haoweilou@drstrange.cse.unsw.edu.au:~/LatentSpeech/model/flow_rvq_vq_1000.pth ./model
+
 # Flow record: 
 feature_dim = 16
 hid_dim = 64
@@ -55,3 +58,4 @@ hid_dim = 256
 num_flow_layers  = 12
 codebox_size = 1024
 vqloss , Feature Loss 
+
