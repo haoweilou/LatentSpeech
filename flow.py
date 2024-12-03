@@ -6,7 +6,7 @@ import warnings
 from typing import Optional, Sequence
 import torchaudio
 from pqmf import PQMF
-
+from ae import Quantize
 
 warnings.filterwarnings("ignore")
 class MultiScaleSTFT(nn.Module):
@@ -242,3 +242,23 @@ class FlowBlock(nn.Module):
         for flow in reversed(self.flows):
             z = flow.inverse(z)
         return z
+    
+class RVQLayer(nn.Module):
+    """Some Information about MyModule"""
+    def __init__(self,feature_dim=16,hid_dim=256,num_flow_layers=12):
+        super().__init__()
+        self.encoder = Block(feature_dim,hid_dim, num_flow_layers)
+        self.decoder = Block(feature_dim,hid_dim, num_flow_layers)
+        self.vq_layer = Quantize(feature_dim,1024)
+
+    def quantize(self,z):
+        zq = self.encoder(z)
+        zq = z.permute(0,2,1) 
+        zq, vq_loss, _ = self.vq_layer(zq)
+        zq = zq.permute(0,2,1) 
+        return zq,vq_loss
+    
+    def forward(self, z):
+        zq,vq_loss = self.quantize(z)
+        z = self.decoder(zq)
+        return z,vq_loss
