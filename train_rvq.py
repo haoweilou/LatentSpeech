@@ -27,18 +27,22 @@ ae = loadModel(ae,"ae20k16_1000","./model")
 
 # vq_layer = RVQ(12,1024,feature_dim).to(device)
 rvq = RVQLayer().to(device)
+# rvq = loadModel(rvq,"rvq_1000","./model/")
 optimizer = optim.Adam(rvq.parameters(),lr=0.0001)
 # optimizer = optim.Adam(vq_layer.parameters(),lr=0.0001)
+# model_name = "rvq20k"
+model_name = "rvq_rvq"
 
 loss_log = pd.DataFrame({"total_loss":[],"vq_loss":[],"feature_loss":[]})
 dataset1 = BakerAudio(0,1000)
 dataset2 = LJSpeechAudio(0,1000)
+# dataset1 = BakerAudio(0,10000,"/scratch/ey69/hl6114/baker/")
+# dataset2 = LJSpeechAudio(0,10000,"/scratch/ey69/hl6114/baker/")
 dataset = ConcatDataset([dataset1,dataset2])
 
 batch_size = 32
 loader = DataLoader(dataset,batch_size=batch_size,collate_fn=dataset1.collate,drop_last=True,shuffle=True)
 epochs = 1001
-model_name = "rvq"
 
 for epoch in range(epochs):
     loss_val = 0
@@ -67,7 +71,7 @@ for epoch in range(epochs):
     
     print(f"Epoch: {epoch} VQ Loss: {vq_loss_/len(loader):.03f} Feature Loss: {feature_loss_/len(loader):.03f} Total: {loss_val/len(loader):.03f}")
     
-    if epoch % 100 == 0:
+    if epoch % 50 == 0:
         saveModel(rvq,f"{model_name}_{epoch}","./model/")
 
     loss_log.loc[len(loss_log.index)] = [loss_val/len(loader),vq_loss_/len(loader),feature_loss_/len(loader)]

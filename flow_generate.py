@@ -36,7 +36,7 @@ num = 600
 # encoder = Block(feature_dim,hid_dim, num_flow_layers).to(device)
 # decoder = Block(feature_dim,hid_dim, num_flow_layers).to(device)
 rvq = RVQLayer().to(device)
-rvq = loadModel(rvq,"rvq_300","./model/")
+rvq = loadModel(rvq,"rvq_1000","./model/")
 # embed_size = 1024
 # vq_layer = Quantize(feature_dim,1024).to(device)
 

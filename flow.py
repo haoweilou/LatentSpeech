@@ -6,7 +6,7 @@ import warnings
 from typing import Optional, Sequence
 import torchaudio
 from pqmf import PQMF
-from ae import Quantize
+from ae import Quantize,RVQ
 
 warnings.filterwarnings("ignore")
 class MultiScaleSTFT(nn.Module):
@@ -249,7 +249,8 @@ class RVQLayer(nn.Module):
         super().__init__()
         self.encoder = Block(feature_dim,hid_dim, num_flow_layers)
         self.decoder = Block(feature_dim,hid_dim, num_flow_layers)
-        self.vq_layer = Quantize(feature_dim,1024)
+        # self.vq_layer = Quantize(feature_dim,1024)
+        self.vq_layer = RVQ(num_flow_layers,1024,feature_dim)
 
     def quantize(self,z):
         zq = self.encoder(z)
