@@ -6,6 +6,17 @@ from ae import VQAE,VQAE_Audio,VQAE_Audio2
 from params import params
 from sklearn.manifold import TSNE
 import torchaudio
+from tts import DurationAligner
+from flow import AffineCouple,Glow
+# da = DurationAligner()
+# pho_embed = torch.randn((4,16,50))
+# tar_embed = torch.randn((4,16,500))
+# o = da(pho_embed,tar_embed)
+model = Glow()
+x = torch.randn((4,16,500))
+o,logdet = model(x)
+print(o.shape)
+
 # tsne = TSNE(n_components=2, random_state=42)
 # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 # audio = torch.randn(2,1,48000).to(device)
@@ -84,19 +95,19 @@ import torchaudio
 # # audio_fake = vqae.decode_inference(z_q,b,embed_dim,H,T)
 
 # # print(z_q.shape,audio_fake.shape)
-from params import params
-from jukebox import *
-pqmf_channel = 8
-t = 48*1000 // pqmf_channel
-model = VQAE(ratios=[4,4,4])
-model = Jukebox(params)
+# from params import params
+# from jukebox import *
+# pqmf_channel = 8
+# t = 48*1000 // pqmf_channel
+# model = VQAE(ratios=[4,4,4])
+# model = Jukebox(params)
 
+# # audio = torch.rand(8,1,48000)
 # audio = torch.rand(8,1,48000)
-audio = torch.rand(8,1,48000)
-o,_,_ = model(audio)
-# encoder = EncoderBlock(pqmf_channel,64,hidden_dim=64,down_t=1,stride_t=2,depth=4,m_conv=10,dilation_growth_rate=3)
-# o = encoder(pqmf_audio)
-# # print(o.shape)
-# decoder = DecoderBlock(pqmf_channel,64,hidden_dim=64,down_t=1,stride_t=2,depth=4,m_conv=10,dilation_growth_rate=3,dilation_cycle=3)
-# a_f = decoder(o)
-print(audio.shape,o.shape)
+# o,_,_ = model(audio)
+# # encoder = EncoderBlock(pqmf_channel,64,hidden_dim=64,down_t=1,stride_t=2,depth=4,m_conv=10,dilation_growth_rate=3)
+# # o = encoder(pqmf_audio)
+# # # print(o.shape)
+# # decoder = DecoderBlock(pqmf_channel,64,hidden_dim=64,down_t=1,stride_t=2,depth=4,m_conv=10,dilation_growth_rate=3,dilation_cycle=3)
+# # a_f = decoder(o)
+# print(audio.shape,o.shape)

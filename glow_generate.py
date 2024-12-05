@@ -17,7 +17,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from params import params
 # from model import VQAESeq
-from flow import AE,RVQLayer
+from flow import AE,Glow
 from ae import Quantize
 from tqdm import tqdm
 from function import saveModel,loadModel
@@ -35,8 +35,8 @@ num = 600
 # flow_module = FlowBlock(feature_dim, num_flow_layers).to(device)
 # encoder = Block(feature_dim,hid_dim, num_flow_layers).to(device)
 # decoder = Block(feature_dim,hid_dim, num_flow_layers).to(device)
-rvq = RVQLayer().to(device)
-rvq = loadModel(rvq,"rvq_rvq_1000","./model/")
+glow = Glow(num_layer=12).to(device)
+glow = loadModel(glow,"glow_100","./model/")
 # embed_size = 1024
 # vq_layer = Quantize(feature_dim,1024).to(device)
 
@@ -44,9 +44,7 @@ rvq = loadModel(rvq,"rvq_rvq_1000","./model/")
 # decoder = loadModel(decoder,f"flow_decoder_{num}","./model/",strict=True)
 # vq_layer = loadModel(vq_layer,f"flow_vq_{num}","./model/",strict=True)
 
-from sklearn.decomposition import PCA
 
-pca = PCA(n_components=2)
 # finetune = WaveNet(num_layers=20).to(device)
 import random
 
@@ -57,8 +55,7 @@ loader = DataLoader(dataset,batch_size=32,collate_fn=dataset.collate,drop_last=F
 
 n_bands = 16
 pqmf = PQMF(100,n_bands).to(device)
-# audio = audio.unsqueeze(1).to(device)
-# print(audio.shape)
+
 with torch.no_grad():
     for audio in tqdm(loader):
         audio = audio.to(device)
@@ -69,11 +66,12 @@ with torch.no_grad():
         save_audio(audio[0].to("cpu"),48000,f"real")
 
         z,_ = ae.encode(audio)
-        zq,vq_loss = rvq(z)
-        pqmf_audio1 = ae.decode(zq)
+        gussian,vq_loss = glow(z)
+        zf = glow.reverse(gussian)
+        pqmf_audio1 = ae.decode(zf)
         a = pqmf.inverse(pqmf_audio1)
-        draw_wave(a[0][0].to("cpu"),f"rvq")
-        save_audio(a[0].to("cpu"),48000,f"rvq")
+        draw_wave(a[0][0].to("cpu"),f"glow")
+        save_audio(a[0].to("cpu"),48000,f"glow")
 
         pqmf_audio1 = ae.decode(z)
         a = pqmf.inverse(pqmf_audio1)

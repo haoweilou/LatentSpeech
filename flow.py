@@ -263,3 +263,132 @@ class RVQLayer(nn.Module):
         zq,vq_loss = self.quantize(z)
         z = self.decoder(zq)
         return z,vq_loss
+    
+class Glow(nn.Module):
+    """Some Information about Glow"""
+    def __init__(self,feature_dim=16,num_layer=16):
+        super(Glow, self).__init__()
+        self.flows = nn.ModuleList([GlowStep(feature_dim) for _ in range(num_layer)])
+
+    def forward(self, x):
+        log_det = 0
+        for flow in self.flows:
+            x, ld = flow(x)
+            log_det += ld
+        return x, log_det
+
+    def reverse(self,y):
+        for flow in reversed(self.flows):
+            y = flow.reverse(y)
+        return y
+
+class GlowStep(nn.Module):
+    """Some Information about Glow"""
+    def __init__(self,feature_dim):
+        super().__init__()
+        self.actnorm = Actnorm(feature_dim)
+        self.inv1d = Inv1DCov(feature_dim)
+        self.affine = AffineCouple(feature_dim)
+
+    def forward(self, x):
+        x,logdet0 = self.actnorm(x)
+        x,logdet1 = self.inv1d(x)
+        y,logdet2 = self.affine(x)
+        l = logdet0+logdet1+logdet2
+        return y,l
+    
+    def reverse(self,y):
+        x = self.affine.reverse(y)
+        x = self.inv1d.reverse(x)
+        x = self.actnorm.reverse(x)
+        return x
+    
+class AffineCouple(nn.Module):
+    """Some Information about AffineCouple"""
+    def __init__(self,in_channels=16):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv1d(in_channels // 2, 512, kernel_size=3, padding=1),
+            nn.LeakyReLU(0.2),
+            nn.Conv1d(512, 512, kernel_size=1),
+            nn.LeakyReLU(0.2),
+            nn.Conv1d(512, in_channels, kernel_size=3, padding=1)
+        )
+
+    def forward(self, x):
+        #x = B, C, T
+        xa,xb = x.chunk(2, dim=1)
+        logs,t  = self.net(xb).chunk(2, dim=1) #logs, t
+        s = torch.sigmoid(logs + 2)
+        ya = s*xa + t 
+        yb = xb 
+        y = torch.cat((ya,yb),dim=1)
+
+        logdet = torch.sum(torch.log(s).view(x.shape[0], -1), 1)
+        
+        return y,logdet
+    
+    def reverse(self,y):
+        #y = B,C,T
+        ya,yb = y.chunk(2,dim=1)
+        logs,t = self.net(yb).chunk(2, dim=1) #logs, t
+        s = torch.sigmoid(logs+2)
+        xa = (ya-t) / s 
+        xb = yb 
+
+        x = torch.cat((xa,xb),dim=1)
+
+        return x
+    
+class Inv1DCov(nn.Module):
+    """Some Information about Inv1DCov"""
+    def __init__(self,num_channels=16):
+        super(Inv1DCov, self).__init__()
+        w = torch.qr(torch.randn(num_channels, num_channels))[0]
+        self.weight = nn.Parameter(w.unsqueeze(2))  # 1x1 conv kernel
+
+    def forward(self, x):
+        #B,C,T
+        b,c,t = x.shape
+        log_det = torch.slogdet(self.weight.squeeze())[1] * t
+        y = F.conv1d(x,self.weight)
+        return y,log_det
+
+    def reverse(self,y):
+        weight_inv = torch.inverse(self.weight.squeeze()).unsqueeze(2)
+        x = F.conv1d(y, weight_inv)
+        return x
+class Actnorm(nn.Module):
+    """Some Information about Actnorm"""
+    def __init__(self,num_channels=16):
+        super(Actnorm, self).__init__()
+        self.num_channel = num_channels
+        self.s = nn.Parameter(torch.zeros(1, num_channels,  1))
+        self.b = nn.Parameter(torch.zeros(1, num_channels, 1))
+        self.initialized = False
+        self.logabs = lambda x: torch.log(torch.abs(x))
+
+
+    def initialize_parameters(self, x):
+        """
+        Initialize scale and bias using the first batch of data.
+        """
+        with torch.no_grad():
+            mean = x.mean(dim=[0, 2], keepdim=True)
+            std = x.std(dim=[0, 2], keepdim=True)
+            self.b.data.copy_(-mean)
+            self.s.data.copy_(1 / (std + 1e-6))
+        self.initialized = True
+
+    def forward(self, x):
+        b,c,t = x.shape
+        if not self.initialized:
+            self.initialize_parameters(x)
+        y = self.s*x + self.b
+        log_abs = self.logabs(self.s)
+        logdet = torch.sum(log_abs) * t
+        return y,logdet
+    
+    def reverse(self,y):
+        x = (y - self.b)/self.s
+        return x

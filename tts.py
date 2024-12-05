@@ -443,6 +443,99 @@ class StyleSpeech(nn.Module):
         mel = self.mel_linear(fused)       
         return mel,log_duration_prediction,mel_mask
 
+
+# class StyleSpeech2(nn.Module):
+#     """Some Information about StyleSpeech"""
+#     def __init__(self,config,embed_dim=64,output_channel=1):
+#         super(StyleSpeech2, self).__init__()
+#         self.max_word = config["max_seq_len"] + 1
+#         self.pho_encoder = Encoder(config["pho_config"],max_word=self.max_word)
+#         self.style_encoder = Encoder(config["style_config"],max_word=self.max_word)
+#         self.length_adaptor = LengthAdaptor(config["len_config"],word_dim=config["pho_config"]['word_dim'])
+#         self.fuse_decoder = Decoder(config["fuse_config"],max_word=self.max_word)
+#         self.output_channel = output_channel
+#         if output_channel != 1:
+#             self.channel = nn.Sequential(
+#                 nn.Conv2d(1,output_channel,kernel_size=(3, 1), padding=(1, 0))
+#             )
+
+#         self.duration_aligner = DurationAligner(16,16)
+
+#         self.mel_linear = nn.Sequential(
+#             nn.Linear(
+#                 config["fuse_config"]["word_dim"],
+#                 embed_dim
+#             ),
+#             nn.LeakyReLU(.2)
+#         )
+        
+
+#     def forward(self, x, s, src_lens, mel_lens=None,max_mel_len=None):
+#         batch_size, max_src_len = x.shape[0],x.shape[1]
+#         src_mask = get_mask_from_lengths(src_lens,max_len=max_src_len)
+#         mel_mask = get_mask_from_lengths(mel_lens, max_len=max_mel_len)
+#         pho_embed = self.pho_encoder(x,src_mask)
+#         style_embed = self.style_encoder(s,src_mask)
+        
+#         fused = pho_embed + style_embed
+        
+
+#         fused,log_duration_prediction, duration_rounded, _, mel_mask = self.length_adaptor(fused,src_mask, mel_mask=mel_mask, max_len=max_mel_len, duration_target=duration_target)
+#         fused,mel_mask = self.fuse_decoder(fused,mel_mask)
+            
+#         return fused,log_duration_prediction,mel_mask
+
+def MAS(S):
+    #S = similarity matrix
+    #N = num phone
+    #M = num mel
+    N,M = S.size()
+    Q = torch.full((N, M), float('-inf'), device=S.device)
+    A = torch.zeros((N, M), dtype=torch.long, device=S.device)
+
+    Q[0, :] = S[0, :]
+    for j in range(1, M):
+        for i in range(min(j, N)):  # Ensure j >= i (monotonicity constraint)
+            # Consider all previous mel frames up to j
+            if i == j:
+                v_cur = float('-inf')
+            else:
+                v_cur = Q[i, j-1]
+            
+            if i == 0:
+                if j == 0:
+                    v_prev = 0.
+                else:
+                    v_prev = float('-inf')
+            else:
+                v_prev = Q[i-1,j-1]
+            Q[i][j] = max(v_prev,v_cur) + Q[i][j]
+
+    index = N - 1
+    for j in range(M - 1, -1, -1):
+        A[index, j] = 1
+        if index != 0 and (index == j or Q[index, j-1] < Q[index-1, j-1]):
+            index = index - 1
+    return A
+
+
+class DurationAligner(nn.Module):
+    def __init__(self,feature_dim=16, tar_dim=16):
+        super().__init__()
+        self.feature_dim = feature_dim
+        self.tar_dim = tar_dim
+        
+    def forward(self, pho_embed, tar_embed):
+        # pho_embed: F, L, F = feat dim, L = number phone, 
+        # tar_embed: M, T, M = mel dim, T = number mel 
+        pho_norm = pho_embed / pho_embed.norm(dim=-1, keepdim=True) #F, L
+        tar_norm = tar_embed / tar_embed.norm(dim=-1, keepdim=True) #F, T
+        similarity_matrix = torch.matmul(pho_norm.transpose(1, 2), tar_norm)  # [L, T]
+        As = [MAS(s) for s in similarity_matrix]
+        durations = torch.stack([a.sum(dim=1) for a in As])
+        return durations
+
+
 class FastSpeechLoss(nn.Module):
     """Some Information about FastSpeechLoss"""
     def __init__(self):

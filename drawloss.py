@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import pandas as pd 
-dataframe = pd.read_csv("./log/loss_rvq")
+dataframe = pd.read_csv("./log/loss_rvq_rvq")
 # dataframe = pd.read_csv("./log/loss_wavegen")
 
 # Extract the 'epochs' column from the DataFrame
