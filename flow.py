@@ -270,37 +270,44 @@ class Glow(nn.Module):
         super(Glow, self).__init__()
         self.flows = nn.ModuleList([GlowStep(feature_dim) for _ in range(num_layer)])
 
-    def forward(self, x):
+    def forward(self, x,x_mask=None):
+        #x = b,c,t, mask = b,1,t
+        b,c,t = x.shape
+        if x_mask is None: x_mask = torch.ones(b, 1, t).to(device=x.device, dtype=x.dtype)
+
         log_det = 0
         for flow in self.flows:
-            x, ld = flow(x)
+            x, ld = flow(x,x_mask)
             log_det += ld
         return x, log_det
 
-    def reverse(self,y):
+    def reverse(self,y,x_mask=None):
+        b,c,t = y.shape
+        if x_mask is None: x_mask = torch.ones(b, 1, t).to(device=y.device, dtype=y.dtype)
+
         for flow in reversed(self.flows):
-            y = flow.reverse(y)
+            y = flow.reverse(y,x_mask)
         return y
 
 class GlowStep(nn.Module):
     """Some Information about Glow"""
     def __init__(self,feature_dim):
         super().__init__()
-        self.actnorm = Actnorm(feature_dim)
-        self.inv1d = Inv1DCov(feature_dim)
+        self.actnorm = ActNorm(feature_dim)
+        self.inv1d = InvCov(feature_dim)
         self.affine = AffineCouple(feature_dim)
 
-    def forward(self, x):
-        x,logdet0 = self.actnorm(x)
-        x,logdet1 = self.inv1d(x)
-        y,logdet2 = self.affine(x)
+    def forward(self, x, x_mask=None):
+        x,logdet0 = self.actnorm(x,x_mask)
+        x,logdet1 = self.inv1d(x,x_mask)
+        y,logdet2 = self.affine(x,x_mask)
         l = logdet0+logdet1+logdet2
         return y,l
     
-    def reverse(self,y):
-        x = self.affine.reverse(y)
-        x = self.inv1d.reverse(x)
-        x = self.actnorm.reverse(x)
+    def reverse(self,y, x_mask=None):
+        x = self.affine.reverse(y,x_mask)
+        x = self.inv1d.reverse(x,x_mask)
+        x = self.actnorm.reverse(x,x_mask)
         return x
     
 class AffineCouple(nn.Module):
@@ -315,7 +322,7 @@ class AffineCouple(nn.Module):
             nn.Conv1d(512, in_channels, kernel_size=3, padding=1)
         )
 
-    def forward(self, x):
+    def forward(self, x, x_mask):
         #x = B, C, T
         xa,xb = x.chunk(2, dim=1)
         logs,t  = self.net(xb).chunk(2, dim=1) #logs, t
@@ -328,7 +335,7 @@ class AffineCouple(nn.Module):
         
         return y,logdet
     
-    def reverse(self,y):
+    def reverse(self,y, x_mask):
         #y = B,C,T
         ya,yb = y.chunk(2,dim=1)
         logs,t = self.net(yb).chunk(2, dim=1) #logs, t
@@ -339,56 +346,144 @@ class AffineCouple(nn.Module):
         x = torch.cat((xa,xb),dim=1)
 
         return x
-    
-class Inv1DCov(nn.Module):
-    """Some Information about Inv1DCov"""
-    def __init__(self,num_channels=16):
-        super(Inv1DCov, self).__init__()
-        w = torch.qr(torch.randn(num_channels, num_channels))[0]
-        self.weight = nn.Parameter(w.unsqueeze(2))  # 1x1 conv kernel
 
-    def forward(self, x):
+class WN(nn.Module):
+    """Some Information about WN"""
+    def __init__(self,in_channels, hidden_channels, kernel_size, dilation_rate, n_layers, gin_channels=0, p_dropout=0):
+        super().__init__()
+        assert(kernel_size % 2 == 1)
+        assert(hidden_channels % 2 == 0)
+        self.in_channels = in_channels
+        self.hidden_channels =hidden_channels
+        self.kernel_size = kernel_size,
+        self.dilation_rate = dilation_rate
+        self.n_layers = n_layers
+        self.gin_channels = gin_channels
+        self.p_dropout = p_dropout
+
+        self.in_layers = torch.nn.ModuleList()
+        self.res_skip_layers = torch.nn.ModuleList()
+        self.drop = nn.Dropout(p_dropout)
+
+        if gin_channels != 0:
+            cond_layer = torch.nn.Conv1d(gin_channels, 2*hidden_channels*n_layers, 1)
+            self.cond_layer = torch.nn.utils.weight_norm(cond_layer, name='weight')
+        for i in range(n_layers):
+            dilation = dilation_rate ** i
+            padding = int((kernel_size * dilation - dilation) / 2)
+            in_layer = torch.nn.Conv1d(hidden_channels, 2*hidden_channels, kernel_size,
+                                    dilation=dilation, padding=padding)
+            in_layer = torch.nn.utils.weight_norm(in_layer, name='weight')
+            self.in_layers.append(in_layer)
+
+            # last one is not necessary
+            if i < n_layers - 1:
+                res_skip_channels = 2 * hidden_channels
+            else:
+                res_skip_channels = hidden_channels
+
+        res_skip_layer = torch.nn.Conv1d(hidden_channels, res_skip_channels, 1)
+        res_skip_layer = torch.nn.utils.weight_norm(res_skip_layer, name='weight')
+        self.res_skip_layers.append(res_skip_layer)
+
+
+    def forward(self, x, x_mask=None, g=None, **kwargs):
+        output = torch.zeros_like(x)
+        n_channels_tensor = torch.IntTensor([self.hidden_channels])
+        
+        if g is not None:g = self.cond_layer(g)#g is the condition
+
+        for i in range(self.n_layers):
+          x_in = self.in_layers[i](x)
+          x_in = self.drop(x_in)
+          if g is not None:
+            cond_offset = i * 2 * self.hidden_channels
+            g_l = g[:,cond_offset:cond_offset+2*self.hidden_channels,:]
+          else:
+            g_l = torch.zeros_like(x_in)
+
+        return x
+
+class InvCov(nn.Module):
+    """Some Information about Inv1DCov"""
+    def __init__(self,num_channels=16, n_split=4):
+        super().__init__()
+        self.channels = num_channels
+        self.n_split = n_split
+        
+        w = torch.qr(torch.FloatTensor(self.n_split, self.n_split).normal_())[0]
+        if torch.det(w) < 0: w[:,0] = -1 * w[:,0]
+        self.weight = nn.Parameter(w)  # 1x1 conv kernel
+
+    def forward(self, x,x_mask):
         #B,C,T
         b,c,t = x.shape
-        log_det = torch.slogdet(self.weight.squeeze())[1] * t
-        y = F.conv1d(x,self.weight)
-        return y,log_det
+        x_len = torch.sum(x_mask, [1, 2])
 
-    def reverse(self,y):
-        weight_inv = torch.inverse(self.weight.squeeze()).unsqueeze(2)
-        x = F.conv1d(y, weight_inv)
+        x = x.view(b, 2, c // self.n_split, self.n_split // 2, t)
+        x = x.permute(0, 1, 3, 2, 4).contiguous().view(b, self.n_split, c // self.n_split, t)
+        weight = self.weight
+        logdet = torch.logdet(self.weight) * (c / self.n_split) * x_len # [b]
+        weight = weight.view(self.n_split, self.n_split, 1, 1)
+        y = F.conv2d(x, weight)
+        y = y.view(b, 2, self.n_split // 2, c // self.n_split, t)
+        y = y.permute(0, 1, 3, 2, 4).contiguous().view(b, c, t) * x_mask
+        
+        return y,logdet
+
+    def reverse(self,y,x_mask):
+        b,c,t = y.shape
+
+        y = y.view(b, 2, c // self.n_split, self.n_split // 2, t)
+        y = y.permute(0, 1, 3, 2, 4).contiguous().view(b, self.n_split, c // self.n_split, t)
+
+        weight = torch.inverse(self.weight.float()).to(dtype=self.weight.dtype)
+
+        x = F.conv2d(y, weight)
+        x = x.view(b, 2, self.n_split // 2, c // self.n_split, t)
+        x = x.permute(0, 1, 3, 2, 4).contiguous().view(b, c, t) * x_mask
+
         return x
-class Actnorm(nn.Module):
+    
+class ActNorm(nn.Module):
     """Some Information about Actnorm"""
     def __init__(self,num_channels=16):
-        super(Actnorm, self).__init__()
+        super().__init__()
         self.num_channel = num_channels
-        self.s = nn.Parameter(torch.zeros(1, num_channels,  1))
-        self.b = nn.Parameter(torch.zeros(1, num_channels, 1))
+        self.logs = nn.Parameter(torch.zeros(1, num_channels,  1))
+        self.bias = nn.Parameter(torch.zeros(1, num_channels, 1))
         self.initialized = False
-        self.logabs = lambda x: torch.log(torch.abs(x))
 
 
-    def initialize_parameters(self, x):
+    def initialize_parameters(self, x, x_mask):
         """
         Initialize scale and bias using the first batch of data.
         """
         with torch.no_grad():
-            mean = x.mean(dim=[0, 2], keepdim=True)
-            std = x.std(dim=[0, 2], keepdim=True)
-            self.b.data.copy_(-mean)
-            self.s.data.copy_(1 / (std + 1e-6))
+            denom = torch.sum(x_mask, [0, 2])
+            m = torch.sum(x * x_mask, [0, 2]) / denom
+            m_sq = torch.sum(x * x * x_mask, [0, 2]) / denom
+            v = m_sq - (m ** 2)
+            logs = 0.5 * torch.log(torch.clamp_min(v, 1e-6))
+
+            bias_init = (-m * torch.exp(-logs)).view(*self.bias.shape).to(dtype=self.bias.dtype)
+            logs_init = (-logs).view(*self.logs.shape).to(dtype=self.logs.dtype)
+
+            self.bias.data.copy_(bias_init)
+            self.logs.data.copy_(logs_init)
         self.initialized = True
 
-    def forward(self, x):
-        b,c,t = x.shape
+    def forward(self, x, x_mask):
+        #x = [b,c,t], x_mask = [b,1,t]
+        x_len = torch.sum(x_mask, [1, 2])
         if not self.initialized:
-            self.initialize_parameters(x)
-        y = self.s*x + self.b
-        log_abs = self.logabs(self.s)
-        logdet = torch.sum(log_abs) * t
+            self.initialize_parameters(x, x_mask)
+
+        y = (self.bias + torch.exp(self.logs) * x) * x_mask
+        logdet = torch.sum(self.logs) * x_len # [b]
         return y,logdet
     
-    def reverse(self,y):
-        x = (y - self.b)/self.s
+    def reverse(self,y,x_mask):
+        #x = b,c,t, mask = b,1,t
+        x = (y - self.bias) * torch.exp(-self.logs)
         return x

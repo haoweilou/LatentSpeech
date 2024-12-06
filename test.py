@@ -6,16 +6,75 @@ from ae import VQAE,VQAE_Audio,VQAE_Audio2
 from params import params
 from sklearn.manifold import TSNE
 import torchaudio
-from tts import DurationAligner
-from flow import AffineCouple,Glow
+# from tts import DurationAligner
+from flow import AffineCouple,Glow,AE
+from glow import GlowDecoder
+from function import loadModel
 # da = DurationAligner()
 # pho_embed = torch.randn((4,16,50))
 # tar_embed = torch.randn((4,16,500))
 # o = da(pho_embed,tar_embed)
-model = Glow()
-x = torch.randn((4,16,500))
-o,logdet = model(x)
-print(o.shape)
+# model = Glow()
+# ae = loadModel(ae,"ae9k16","./model")
+
+from dataset import BakerAudio,BakerText
+from torch.utils.data import DataLoader
+from function import plot_pqmf_bands,spectral_denoise
+from ae import PQMF
+from params import params
+bakertext = BakerText(normalize=False,start=0,end=100,path="C:/baker/")
+bakeraudio = BakerAudio(start=0,end=100,path="C:/baker/")
+def collate_fn(batch):
+    text_batch, audio_batch = zip(*batch)
+    text_batch = [torch.stack([item[i] for item in text_batch]) for i in range(len(text_batch[0]))]
+    audio_batch = bakeraudio.collate(audio_batch)
+    return text_batch, audio_batch
+from tts import ContextEncoder,StyleSpeech2
+from tqdm import tqdm
+loader = DataLoader(dataset=list(zip(bakertext, bakeraudio)), collate_fn=collate_fn, batch_size=16, shuffle=True)
+from tts_config import config
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+context_encoder = StyleSpeech2(config).to(device)
+
+ae = AE(params).to(device)
+ae = loadModel(ae,"ae20k16_700","./model")
+
+for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
+    x,s,_,x_lens,_ = [tensor.to('cuda') for tensor in text_batch]
+    audio = audio_batch.to(device)
+
+    speaker = torch.zeros(x_lens.shape).to(dtype=x_lens.dtype,device=x_lens.device)
+   
+    context_embed = context_encoder(x,s,x_lens)
+    print(context_embed.shape)
+    break
+
+# out_channels = 16
+# hidden_channels = 192
+# kernel_size = 3
+# dilation_rate = 1
+# n_blocks_dec = 12
+# n_block_layers = 4
+# p_dropout_dec = 0.05
+# n_split=4
+# n_sqz = 2
+# sigmoid_scale=False
+# gin_channels = 0
+
+# glow = GlowDecoder(in_channels=16, 
+#         hidden_channels=192, 
+#         kernel_size=3, 
+#         dilation_rate=1, 
+#         n_blocks=12, 
+#         n_layers=4, 
+#         p_dropout=0.05, 
+#         n_split=4,
+#         n_sqz=2,
+#         sigmoid_scale=False,
+#         gin_channels=0)
+# #g is for speaker identity
+# z, logdet = glow(y, y_mask, g=None, reverse=False)
+# print(z.shape,logdet)
 
 # tsne = TSNE(n_components=2, random_state=42)
 # device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')

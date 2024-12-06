@@ -244,7 +244,6 @@ class LengthPredictor(nn.Module):
         self.dropout = config["dropout"]
 
         self.conv = nn.Sequential(
-            
             CONV(self.word_dim,self.filter_size,self.kernel,padding=(self.kernel - 1) // 2),
             nn.ReLU(),
             nn.LayerNorm(self.filter_size),
@@ -278,6 +277,12 @@ def get_mask_from_lengths(lengths, max_len=None):
     mask = ids >= lengths.unsqueeze(1).expand(-1, max_len)
 
     return mask
+
+def sequence_mask(length, max_length=None):
+    if max_length is None:
+        max_length = length.max()
+    x = torch.arange(max_length, dtype=length.dtype, device=length.device)
+    return x.unsqueeze(0) < length.unsqueeze(1)
 
 def pad(input_ele, mel_max_length=None):
     if mel_max_length:
@@ -444,46 +449,234 @@ class StyleSpeech(nn.Module):
         return mel,log_duration_prediction,mel_mask
 
 
-# class StyleSpeech2(nn.Module):
-#     """Some Information about StyleSpeech"""
-#     def __init__(self,config,embed_dim=64,output_channel=1):
-#         super(StyleSpeech2, self).__init__()
-#         self.max_word = config["max_seq_len"] + 1
-#         self.pho_encoder = Encoder(config["pho_config"],max_word=self.max_word)
-#         self.style_encoder = Encoder(config["style_config"],max_word=self.max_word)
-#         self.length_adaptor = LengthAdaptor(config["len_config"],word_dim=config["pho_config"]['word_dim'])
-#         self.fuse_decoder = Decoder(config["fuse_config"],max_word=self.max_word)
-#         self.output_channel = output_channel
-#         if output_channel != 1:
-#             self.channel = nn.Sequential(
-#                 nn.Conv2d(1,output_channel,kernel_size=(3, 1), padding=(1, 0))
-#             )
+class ContextEncoder(nn.Module):
+    """Some Information about StyleSpeech"""
+    def __init__(self,config):
+        super(ContextEncoder, self).__init__()
+        self.max_word = config["max_seq_len"] + 1
+        self.pho_encoder = Encoder(config["pho_config"],max_word=self.max_word)
+        self.style_encoder = Encoder(config["style_config"],max_word=self.max_word)
+        self.duration_predictor = LengthPredictor(config["len_config"],word_dim=config["pho_config"]['word_dim'])
 
-#         self.duration_aligner = DurationAligner(16,16)
+        self.fc = nn.Sequential(
+            nn.Linear(
+                2*config["pho_config"]["word_dim"],
+                config["pho_config"]["word_dim"]
+            ),
+            nn.LeakyReLU(.2),
 
-#         self.mel_linear = nn.Sequential(
-#             nn.Linear(
-#                 config["fuse_config"]["word_dim"],
-#                 embed_dim
-#             ),
-#             nn.LeakyReLU(.2)
-#         )
+        )
         
+    def forward(self, x, s, x_lens):
+        #in: [b,t] => out [b,t,c]
+        batch_size, max_src_len = x.shape[0],x.shape[1]
+        x_mask = get_mask_from_lengths(x_lens,max_len=max_src_len)
+        pho_embed = self.pho_encoder(x,x_mask)
+        style_embed = self.style_encoder(s,x_mask)
+        fused = torch.cat([pho_embed, style_embed],dim=2) # [b, t, c]
+        fused = self.fc(fused)
+        return fused
+    
+import math
+from glow import GlowDecoder
+class LayerNorm(nn.Module):
+  def __init__(self, channels, eps=1e-4):
+      super().__init__()
+      self.channels = channels
+      self.eps = eps
+      self.gamma = nn.Parameter(torch.ones(channels))
+      self.beta = nn.Parameter(torch.zeros(channels))
 
-#     def forward(self, x, s, src_lens, mel_lens=None,max_mel_len=None):
-#         batch_size, max_src_len = x.shape[0],x.shape[1]
-#         src_mask = get_mask_from_lengths(src_lens,max_len=max_src_len)
-#         mel_mask = get_mask_from_lengths(mel_lens, max_len=max_mel_len)
-#         pho_embed = self.pho_encoder(x,src_mask)
-#         style_embed = self.style_encoder(s,src_mask)
-        
-#         fused = pho_embed + style_embed
-        
+  def forward(self, x):
+    n_dims = len(x.shape)
+    mean = torch.mean(x, 1, keepdim=True)
+    variance = torch.mean((x -mean)**2, 1, keepdim=True)
 
-#         fused,log_duration_prediction, duration_rounded, _, mel_mask = self.length_adaptor(fused,src_mask, mel_mask=mel_mask, max_len=max_mel_len, duration_target=duration_target)
-#         fused,mel_mask = self.fuse_decoder(fused,mel_mask)
+    x = (x - mean) * torch.rsqrt(variance + self.eps)
+
+    shape = [1, -1] + [1] * (n_dims - 2)
+    x = x * self.gamma.view(*shape) + self.beta.view(*shape)
+    return x
+
+class DurationPredictor(nn.Module):
+    def __init__(self, in_channels, filter_channels, kernel_size=3, p_dropout=0.05):
+        super().__init__()
+
+        self.in_channels = in_channels
+        self.filter_channels = filter_channels
+        self.kernel_size = kernel_size
+        self.p_dropout = p_dropout
+
+        self.drop = nn.Dropout(p_dropout)
+        self.conv_1 = nn.Conv1d(in_channels, filter_channels, kernel_size, padding=kernel_size//2)
+        self.norm_1 = LayerNorm(filter_channels)
+        self.conv_2 = nn.Conv1d(filter_channels, filter_channels, kernel_size, padding=kernel_size//2)
+        self.norm_2 = LayerNorm(filter_channels)
+        self.proj = nn.Conv1d(filter_channels, 1, 1)
+
+    def forward(self, x, x_mask):
+        x = self.conv_1(x * x_mask)
+        x = torch.relu(x)
+        x = self.norm_1(x)
+        x = self.drop(x)
+        x = self.conv_2(x * x_mask)
+        x = torch.relu(x)
+        x = self.norm_2(x)
+        x = self.drop(x)
+        x = self.proj(x * x_mask)
+        return x * x_mask
+    
+def convert_pad_shape(pad_shape):
+    l = pad_shape[::-1]
+    pad_shape = [item for sublist in l for item in sublist]
+    return pad_shape
+
+def generate_path(duration, mask):
+    """
+    duration: [b, t_x]
+    mask: [b, t_x, t_y]
+    """
+    device = duration.device
+    
+    b, t_x, t_y = mask.shape
+    cum_duration = torch.cumsum(duration, 1)
+    path = torch.zeros(b, t_x, t_y, dtype=mask.dtype).to(device=device)
+    
+    cum_duration_flat = cum_duration.view(b * t_x)
+    path = sequence_mask(cum_duration_flat, t_y).to(mask.dtype)
+    path = path.view(b, t_x, t_y)
+    path = path - F.pad(path, convert_pad_shape([[0, 0], [1, 0], [0, 0]]))[:,:-1]
+    path = path * mask
+    return path
+
+
+def maximum_path(value, mask, max_neg_val=-np.inf):
+    """ Numpy-friendly version. It's about 4 times faster than torch version.
+    value: [b, t_x, t_y]
+    mask: [b, t_x, t_y]
+    """
+    value = value * mask
+
+    device = value.device
+    dtype = value.dtype
+    value = value.cpu().detach().numpy()
+    mask = mask.cpu().detach().numpy().astype(np.bool)
+    
+    b, t_x, t_y = value.shape
+    direction = np.zeros(value.shape, dtype=np.int64)
+    v = np.zeros((b, t_x), dtype=np.float32)
+    x_range = np.arange(t_x, dtype=np.float32).reshape(1,-1)
+    for j in range(t_y):
+        v0 = np.pad(v, [[0,0],[1,0]], mode="constant", constant_values=max_neg_val)[:, :-1]
+        v1 = v
+        max_mask = (v1 >= v0)
+        v_max = np.where(max_mask, v1, v0)
+        direction[:, :, j] = max_mask
+        
+        index_mask = (x_range <= j)
+        v = np.where(index_mask, v_max + value[:, :, j], max_neg_val)
+    direction = np.where(mask, direction, 1)
+        
+    path = np.zeros(value.shape, dtype=np.float32)
+    index = mask[:, :, 0].sum(1).astype(np.int64) - 1
+    index_range = np.arange(b)
+    for j in reversed(range(t_y)):
+        path[index_range, index, j] = 1
+        index = index + direction[index_range, index, j] - 1
+    path = path * mask.astype(np.float32)
+    path = torch.from_numpy(path).to(device=device, dtype=dtype)
+    return path
+
+class StyleSpeech2(nn.Module):
+    """Some Information about StyleSpeech2"""
+    def __init__(self,config,n_speakers=2):
+        super().__init__()
+        self.encoder = ContextEncoder(config)
+        self.proj_m = nn.Conv1d(256, 16, 1)
+        self.proj_s = nn.Conv1d(256, 16, 1)
+        gin_channels = 256
+        self.hidden_channel=256
+        self.proj_w = DurationPredictor(gin_channels+self.hidden_channel,16)
+        self.n_sqz = 2
+        self.decoder = GlowDecoder(in_channels=16, 
+            hidden_channels=256, 
+            kernel_size=3, 
+            dilation_rate=1, 
+            n_blocks=12, 
+            n_layers=4, 
+            p_dropout=0.05, 
+            n_split=4,
+            n_sqz=self.n_sqz,
+            sigmoid_scale=False,
+            gin_channels=gin_channels)
+        if n_speakers > 1:
+            self.emb_g = nn.Embedding(n_speakers, gin_channels)
+            nn.init.uniform_(self.emb_g.weight, -0.1, 0.1)
+
+    def forward(self, x, s, x_lens, y=None, y_lens=None, g=None, gen=False, noise_scale=1., length_scale=1.):
+        #x [b,N], x_lens [b], y [b,c,t], y_lens b 
+        if g is not None:#g is the speaker identity
+            g = F.normalize(self.emb_g(g)).unsqueeze(-1) # [b, h]
+        x = self.encoder(x,s,x_lens) * math.sqrt(self.hidden_channel) #b,t,c
+        x = torch.permute(x,(0,2,1)) #b,c,t
+        x_mask = torch.unsqueeze(sequence_mask(x_lens, x.size(2)), 1).to(x.dtype)#b,1,t
+        if g is not None:
+            g_exp = g.expand(-1, -1, x.size(-1))
+            x_dp = torch.cat([torch.detach(x), g_exp], 1)#b,2c,t
+        else:
+            x_dp = torch.detach(x)
+        x_m = self.proj_m(x) * x_mask
+        x_logs = self.proj_s(x) * x_mask
+
+        logw = self.proj_w(x_dp, x_mask)#duration
+
+        if gen:
+            w = torch.exp(logw) * x_mask * length_scale
+            w_ceil = torch.ceil(w)
+            y_lengths = torch.clamp_min(torch.sum(w_ceil, [1, 2]), 1).long()
+            y_max_length = None
+        else:
+            y_max_length = y.size(2)
             
-#         return fused,log_duration_prediction,mel_mask
+        y, y_lengths, y_max_length = self.preprocess(y, y_lens, y_max_length)
+        z_mask = torch.unsqueeze(sequence_mask(y_lengths, y_max_length), 1).to(x_mask.dtype)
+        attn_mask = torch.unsqueeze(x_mask, -1) * torch.unsqueeze(z_mask, 2)
+
+        if gen:
+            attn = generate_path(w_ceil.squeeze(1), attn_mask.squeeze(1)).unsqueeze(1)
+            z_m = torch.matmul(attn.squeeze(1).transpose(1, 2), x_m.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
+            z_logs = torch.matmul(attn.squeeze(1).transpose(1, 2), x_logs.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
+            logw_ = torch.log(1e-8 + torch.sum(attn, -1)) * x_mask
+
+            z = (z_m + torch.exp(z_logs) * torch.randn_like(z_m) * noise_scale) * z_mask
+            y, logdet = self.decoder(z, z_mask, g=g, reverse=True)
+            return (y, z_m, z_logs, logdet, z_mask), (x_m, x_logs, x_mask), (attn, logw, logw_)
+        else:
+            z, logdet = self.decoder(y, z_mask, g=g, reverse=False)
+            with torch.no_grad():
+                x_s_sq_r = torch.exp(-2 * x_logs)
+                logp1 = torch.sum(-0.5 * math.log(2 * math.pi) - x_logs, [1]).unsqueeze(-1) # [b, t, 1]
+                logp2 = torch.matmul(x_s_sq_r.transpose(1,2), -0.5 * (z ** 2)) # [b, t, d] x [b, d, t'] = [b, t, t']
+                logp3 = torch.matmul((x_m * x_s_sq_r).transpose(1,2), z) # [b, t, d] x [b, d, t'] = [b, t, t']
+                logp4 = torch.sum(-0.5 * (x_m ** 2) * x_s_sq_r, [1]).unsqueeze(-1) # [b, t, 1]
+                logp = logp1 + logp2 + logp3 + logp4 # [b, t, t']
+
+                attn = maximum_path(logp, attn_mask.squeeze(1)).unsqueeze(1).detach()
+
+            z_m = torch.matmul(attn.squeeze(1).transpose(1, 2), x_m.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
+            z_logs = torch.matmul(attn.squeeze(1).transpose(1, 2), x_logs.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
+            logw_ = torch.log(1e-8 + torch.sum(attn, -1)) * x_mask
+        return (z, z_m, z_logs, logdet, z_mask), (x_m, x_logs, x_mask), (attn, logw, logw_)
+    
+    def preprocess(self, y, y_lengths, y_max_length):
+        if y_max_length is not None:
+            y_max_length = (y_max_length // self.n_sqz) * self.n_sqz
+            y = y[:,:,:y_max_length]
+            y_lengths = (y_lengths // self.n_sqz) * self.n_sqz
+        return y, y_lengths, y_max_length
+
+    def store_inverse(self):
+        self.decoder.store_inverse()
 
 def MAS(S):
     #S = similarity matrix
@@ -519,21 +712,21 @@ def MAS(S):
     return A
 
 
-class DurationAligner(nn.Module):
-    def __init__(self,feature_dim=16, tar_dim=16):
-        super().__init__()
-        self.feature_dim = feature_dim
-        self.tar_dim = tar_dim
+# class DurationAligner(nn.Module):
+#     def __init__(self,feature_dim=16, tar_dim=16):
+#         super().__init__()
+#         self.feature_dim = feature_dim
+#         self.tar_dim = tar_dim
         
-    def forward(self, pho_embed, tar_embed):
-        # pho_embed: F, L, F = feat dim, L = number phone, 
-        # tar_embed: M, T, M = mel dim, T = number mel 
-        pho_norm = pho_embed / pho_embed.norm(dim=-1, keepdim=True) #F, L
-        tar_norm = tar_embed / tar_embed.norm(dim=-1, keepdim=True) #F, T
-        similarity_matrix = torch.matmul(pho_norm.transpose(1, 2), tar_norm)  # [L, T]
-        As = [MAS(s) for s in similarity_matrix]
-        durations = torch.stack([a.sum(dim=1) for a in As])
-        return durations
+#     def forward(self, pho_embed, tar_embed):
+#         # pho_embed: F, L, F = feat dim, L = number phone, 
+#         # tar_embed: M, T, M = mel dim, T = number mel 
+#         pho_norm = pho_embed / pho_embed.norm(dim=-1, keepdim=True) #F, L
+#         tar_norm = tar_embed / tar_embed.norm(dim=-1, keepdim=True) #F, T
+#         similarity_matrix = torch.matmul(pho_norm.transpose(1, 2), tar_norm)  # [L, T]
+#         As = [MAS(s) for s in similarity_matrix]
+#         durations = torch.stack([a.sum(dim=1) for a in As])
+#         return durations
 
 
 class FastSpeechLoss(nn.Module):

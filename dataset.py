@@ -45,22 +45,36 @@ def pad16(audio):
 from torch.nn.utils.rnn import pad_sequence
 class BakerAudio(torch.utils.data.Dataset):
     """This dataset only contain the audio file of baker dataset, it is meant to be used when train AE"""
-    def __init__(self,start=0,end=10000,path="/home/haoweilou/scratch/baker/"):
+    def __init__(self,start=0,end=10000,path="/home/haoweilou/scratch/baker/",return_len=False):
         super(BakerAudio, self).__init__()
         audio_path = path
         audio_files = [f"{audio_path}Wave/{i:06d}.wav" for i in range(1,10001)][start:end]
         audios = [pad16(load_audio(f)[0][0]) for f in tqdm(audio_files)]
         self.audios = audios
+        self.audio_lens = [len(audios[i]) for i in range(len(audios))]
         self.max_word_len = 512
+        self.return_len = return_len
         
     def collate(self, minibatch):
+        if self.return_len:
+            minibatch_ = [a[0] for a in minibatch]
+            audio_len = torch.tensor([a[1] for a in minibatch])
+            minibatch = minibatch_
         output = pad_sequence(minibatch,batch_first=True) #Batch,T
         if output.shape[-1] >= 48000*10:
             output = output[:,:48000*10]
-        return output.unsqueeze(1) 
+            audio_len = 48000*10
+        if self.return_len: 
+            return output.unsqueeze(1), audio_len
+        else:
+            return output.unsqueeze(1) 
         
     def __getitem__(self, index):
-        return self.audios[index]
+        if self.return_len == True:
+            return self.audios[index],self.audio_lens[index]
+        else: 
+            return self.audios[index]
+
 
     def __len__(self):
         return len(self.audios)
