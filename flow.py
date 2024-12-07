@@ -437,7 +437,9 @@ class InvCov(nn.Module):
         y = y.view(b, 2, c // self.n_split, self.n_split // 2, t)
         y = y.permute(0, 1, 3, 2, 4).contiguous().view(b, self.n_split, c // self.n_split, t)
 
-        weight = torch.inverse(self.weight.float()).to(dtype=self.weight.dtype)
+        weight = self.weight
+        weight = weight.view(self.n_split, self.n_split, 1, 1)
+        weight = torch.inverse(weight.float()).to(dtype=self.weight.dtype)
 
         x = F.conv2d(y, weight)
         x = x.view(b, 2, self.n_split // 2, c // self.n_split, t)

@@ -257,7 +257,7 @@ class LengthPredictor(nn.Module):
 
         self.linear_layer = nn.Linear(self.conv_output_size, 1)
 
-    def forward(self, x, mask):
+    def forward(self, x, mask=None):
         x = self.conv(x)
 
         x = self.linear_layer(x)
@@ -456,7 +456,6 @@ class ContextEncoder(nn.Module):
         self.max_word = config["max_seq_len"] + 1
         self.pho_encoder = Encoder(config["pho_config"],max_word=self.max_word)
         self.style_encoder = Encoder(config["style_config"],max_word=self.max_word)
-        self.duration_predictor = LengthPredictor(config["len_config"],word_dim=config["pho_config"]['word_dim'])
 
         self.fc = nn.Sequential(
             nn.Linear(
@@ -473,8 +472,10 @@ class ContextEncoder(nn.Module):
         x_mask = get_mask_from_lengths(x_lens,max_len=max_src_len)
         pho_embed = self.pho_encoder(x,x_mask)
         style_embed = self.style_encoder(s,x_mask)
+        # print(pho_embed,style_embed)
         fused = torch.cat([pho_embed, style_embed],dim=2) # [b, t, c]
         fused = self.fc(fused)
+        fused = fused * torch.logical_not(x_mask).unsqueeze(2).to(dtype=fused.dtype)#[b,t,c] * [b,t,1]
         return fused
     
 import math
@@ -677,6 +678,81 @@ class StyleSpeech2(nn.Module):
 
     def store_inverse(self):
         self.decoder.store_inverse()
+from flow import Glow
+class StyleSpeech2_New(nn.Module):
+    """Some Information about StyleSpeech2"""
+    def __init__(self,config,n_speakers=2):
+        super().__init__()
+        self.context_encoder = ContextEncoder(config)
+        self.duration_predictor = LengthPredictor(config["len_config"])
+        # self.speaker_embed = nn.Embedding(n_speakers, config['pho_config']['word_dim'])
+        # nn.init.uniform_(self.speaker_embed.weight, -0.1, 0.1)
+        self.mean_proj = nn.Conv1d(256, 16, 1)
+        self.std_proj = nn.Conv1d(256, 16, 1)
+
+        self.decoder = Glow(16,16)
+
+
+    def forward(self, x, s, x_lens, y=None, y_lens=None, g=None, gen=False, noise_scale=1., length_scale=1.):
+        c_embed = self.context_encoder(x,s, x_lens)#c_embed, is the context embedding, [B,T,C]
+        b,t,c = c_embed.shape
+        x_mask = sequence_mask(x_lens, t).unsqueeze(1).to(x.dtype)#[B,1,T], 1 for none mask, 0 for mask
+        c_dp = self.duration_predictor(c_embed).unsqueeze(1)*x_mask #c_dp, duration predicted result, [B,1,T]
+        c_embed = c_embed.permute(0,2,1) #[B,T,C] => [B,C,T]
+
+        c_mean = self.mean_proj(c_embed)*x_mask #[B,C2,T], C2 is the out dim
+        c_std = self.std_proj(c_embed)*x_mask #[B,C2,T]
+
+        b,c2,l = y.shape#[B,C2,L]
+        y_mask = sequence_mask(y_lens, l).unsqueeze(1).to(y.dtype) #[B,1,L]
+        
+        #[B,1,T,1] * [B,1,1,L]
+        attn_mask = torch.unsqueeze(x_mask, -1) * torch.unsqueeze(y_mask, 2)#[B,1,T,L]
+        #Z = [B,C2,L], LOGDET = [B], just number
+        z, logdet = self.decoder(y,y_mask)
+        with torch.no_grad():
+            c_std_sqrt = torch.exp(-2 * c_std)#[B,C2,T]
+            logp1 = torch.sum(-0.5 * math.log(2 * math.pi) - c_std, [1]).unsqueeze(-1) #[B,T,1]
+            logp2 = torch.matmul(c_std_sqrt.transpose(1,2), -0.5 * (z ** 2)) #[B,T,C2] *[B,C2,L] = [B,T,L]
+            logp3 = torch.matmul((c_mean * c_std_sqrt).transpose(1,2), z) #[B,T,C2] *[B,C2,L] = [B,T,L]
+            logp4 = torch.sum(-0.5 * (c_mean ** 2) * c_std_sqrt, [1]).unsqueeze(-1) # [B, C2, T] => [B,T,1]
+            logp = logp1 + logp2 + logp3 + logp4 # [B,T,L]
+            attn = maximum_path(logp, attn_mask.squeeze(1)).unsqueeze(1).detach()#[B,1,T,L] A* in the paper
+
+        # [B, L, T], [B, T, C2] -> [B, L, C2] => [B,C2,L]
+        z_mean = torch.matmul(attn.squeeze(1).transpose(1, 2), c_mean.transpose(1, 2)).transpose(1, 2) 
+        # [B, L, T], [B, T, C2] -> [B, L, C2] => [B,C2,L]
+        z_std = torch.matmul(attn.squeeze(1).transpose(1, 2), c_std.transpose(1, 2)).transpose(1, 2) 
+        c_dp_r = torch.log(1e-8 + torch.sum(attn, -1)) * x_mask
+        
+        return (z,z_mean,z_std,logdet,y_mask),(c_mean,c_std,x_mask), (attn, c_dp,c_dp_r)
+    
+    def inverse(self, x, s, x_lens, g=None, gen=False, noise_scale=1., length_scale=1.):
+        c_embed = self.context_encoder(x,s, x_lens)#c_embed, is the context embedding, [B,T,C]
+        b,t,c = c_embed.shape
+        x_mask = sequence_mask(x_lens, t).unsqueeze(1).to(x.dtype)#[B,1,T], 1 for none mask, 0 for mask
+        c_dp = self.duration_predictor(c_embed).unsqueeze(1)*x_mask #c_dp, duration predicted result, [B,1,T]
+        c_embed = c_embed.permute(0,2,1) #[B,T,C] => [B,C,T]
+
+        c_mean = self.mean_proj(c_embed)*x_mask #[B,C2,T], C2 is the out dim
+        c_std = self.std_proj(c_embed)*x_mask #[B,C2,T]
+
+        
+        duration = torch.exp(c_dp) * x_mask * length_scale
+        duration_ceil = torch.ceil(duration)
+        y_lens = torch.clamp_min(torch.sum(duration_ceil, [1, 2]), 1).long()
+        y_mask = sequence_mask(y_lens, 512).unsqueeze(1).to(x.dtype) #[B,1,L]
+        #[B,1,T,1] * [B,1,1,L]
+        attn_mask = torch.unsqueeze(x_mask, -1) * torch.unsqueeze(y_mask, 2)#[B,1,T,L]
+        attn = generate_path(duration_ceil,attn_mask.squeeze(1)).to(dtype=c_embed.dtype)#[B,1,T,L] A* in the paper
+        # [B, L, T], [B, T, C2] -> [B, L, C2] => [B,C2,L]
+        z_mean = torch.matmul(attn.squeeze(1).transpose(1, 2), c_mean.transpose(1, 2)).transpose(1, 2) 
+        # [B, L, T], [B, T, C2] -> [B, L, C2] => [B,C2,L]
+        z_std = torch.matmul(attn.squeeze(1).transpose(1, 2), c_std.transpose(1, 2)).transpose(1, 2)
+        c_dp_r = torch.log(1e-8 + torch.sum(attn, -1)) * x_mask
+        z = (z_mean + torch.exp(z_std) * torch.randn_like(z_mean) * noise_scale) * y_mask
+        y = self.decoder.reverse(z,y_mask)
+        return y,attn
 
 def MAS(S):
     #S = similarity matrix
