@@ -35,7 +35,7 @@ def learning_rate(d_model=256,step=1,warmup_steps=400):
     return (1/math.sqrt(d_model)) * min(1/math.sqrt(step),step*warmup_steps**-1.5)
 
 model = StyleSpeech2(config).to(device)
-model = loadModel(model,"StyleSpeech2_600","./model/",strict=False)
+model = loadModel(model,"StyleSpeech2_500","./model/",strict=False)
 optimizer = optim.Adam(model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=learning_rate())
 
 def mle_loss(z, m, logs, logdet, mask):
@@ -78,7 +78,7 @@ for epoch in range(0,1001):
         
         min_size = min(y_gen.shape[-1],y.shape[-1])
         l_reconscturct = F.mse_loss(y[:,:,:min_size],y_gen[:,:,:min_size])
-        
+        l_reconscturct = 10*l_reconscturct
         loss = l_mle + l_length + l_reconscturct
         loss.backward()
         optimizer.step()

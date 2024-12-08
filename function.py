@@ -1,10 +1,12 @@
 import torch
 import torchaudio
 import torchaudio.transforms as T
+import torch.nn.functional as F
 import numpy as np
 import math
 import matplotlib.pyplot as plt
 import pandas as pd
+from torch.nn.utils.rnn import pad_sequence
 from pypinyin import pinyin, Style
 def saveLog(log_record:dict,name="log",root="./save/log/"):
     log = pd.DataFrame(log_record)
@@ -99,6 +101,7 @@ def draw_dot(datas:list,label:list,color=["blue","red","green","orange"],name="d
     plt.clf()
 
 def draw_heatmap(data, vmin=0, vmax=1, color_map='viridis',name="Test",root="./fig/"):
+    
     data = np.array(data)
     vmin = data.min()
     vmax = data.max()
@@ -301,3 +304,13 @@ def spectral_denoise(audio, sr, noise_reduction_factor=10.0, n_fft=1024, hop_len
     denoised_audio = compute_istft_batch(denoised_stft, n_fft=n_fft, hop_length=hop_length)
 
     return denoised_audio
+
+def agd_duration(prob_matrix,x_max_len=None):
+    #phon_prob [batch_size, y_len, num_phonemes]
+    #  
+    prob_matrix = torch.argmax(prob_matrix,dim=2) # [batch_size, y len]
+    l = [collapse_and_duration(i) for i in prob_matrix] 
+    l = pad_sequence([torch.tensor(i) for i in l],batch_first=True,padding_value=0).to(prob_matrix.device)
+    if x_max_len is not None: 
+        l = F.pad(l,(0, x_max_len - l.shape[-1]),value=0)
+    return l

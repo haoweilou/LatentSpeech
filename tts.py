@@ -679,6 +679,49 @@ class StyleSpeech2(nn.Module):
     def store_inverse(self):
         self.decoder.store_inverse()
 from flow import Glow
+
+class StyleSpeech2_FF(nn.Module):
+    """Feed Forward Structure of StyleSpeech2"""
+    def __init__(self,config,embed_dim=64,output_channel=1):
+        super().__init__()
+        self.max_word = config["max_seq_len"] + 1
+        self.encoder = ContextEncoder(config)
+        self.length_adaptor = LengthAdaptor(config["len_config"],word_dim=config["pho_config"]['word_dim'])
+        self.fuse_decoder = Decoder(config["fuse_config"],max_word=self.max_word)
+        self.output_channel = output_channel
+        if output_channel != 1:
+            self.channel = nn.Sequential(
+                nn.Conv2d(1,output_channel,kernel_size=(3, 1), padding=(1, 0))
+            )
+
+        self.mel_linear = nn.Sequential(
+            nn.Linear(
+                config["fuse_config"]["word_dim"],
+                embed_dim
+            ),
+            nn.LeakyReLU(.2)
+        )
+        
+
+    def forward(self, x, s, x_lens,l=None,y_lens=None,max_y_len=None):
+        #l is duration of phoneme
+        #0 for no mask, 1 for mask
+        batch_size, max_x_len = x.shape[0],x.shape[1]
+        x_mask = get_mask_from_lengths(x_lens,max_len=max_x_len)
+        y_mask = get_mask_from_lengths(y_lens, max_len=max_y_len)
+        x = self.encoder(x,s,x_lens)
+
+        x,log_l, l_rounded, _, y_mask = self.length_adaptor(x,x_mask, mel_mask=y_mask, max_len=max_y_len, duration_target=l)
+        
+        x,y_mask = self.fuse_decoder(x,y_mask)
+        if self.output_channel != 1:
+            x = x.unsqueeze(1)
+            x = self.channel(x)
+
+        y = self.mel_linear(x)       
+        y = y.permute(0,2,1) #b,c,t
+        return y,log_l,y_mask
+
 class StyleSpeech2_New(nn.Module):
     """Some Information about StyleSpeech2"""
     def __init__(self,config,n_speakers=2):
@@ -788,21 +831,7 @@ def MAS(S):
     return A
 
 
-# class DurationAligner(nn.Module):
-#     def __init__(self,feature_dim=16, tar_dim=16):
-#         super().__init__()
-#         self.feature_dim = feature_dim
-#         self.tar_dim = tar_dim
-        
-#     def forward(self, pho_embed, tar_embed):
-#         # pho_embed: F, L, F = feat dim, L = number phone, 
-#         # tar_embed: M, T, M = mel dim, T = number mel 
-#         pho_norm = pho_embed / pho_embed.norm(dim=-1, keepdim=True) #F, L
-#         tar_norm = tar_embed / tar_embed.norm(dim=-1, keepdim=True) #F, T
-#         similarity_matrix = torch.matmul(pho_norm.transpose(1, 2), tar_norm)  # [L, T]
-#         As = [MAS(s) for s in similarity_matrix]
-#         durations = torch.stack([a.sum(dim=1) for a in As])
-#         return durations
+
 
 
 class FastSpeechLoss(nn.Module):
@@ -823,3 +852,5 @@ class FastSpeechLoss(nn.Module):
         duration_loss = self.mae_loss(log_l_pred, log_l)
         total_loss = mel_loss+duration_loss
         return total_loss, mel_loss, duration_loss
+    
+
