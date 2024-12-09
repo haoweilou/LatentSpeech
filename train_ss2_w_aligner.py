@@ -8,7 +8,7 @@ from flow import AE
 from function import loadModel,saveModel, agd_duration
 import pandas as pd
 
-from dataset import BakerAudio,BakerText
+from dataset import BakerAudio,BakerText,LJSpeechAudio,LJSpeechText
 from torch.utils.data import DataLoader
 from params import params
 import json
@@ -20,21 +20,35 @@ from model import ASR
 from tts_config import config
 
 import math
-bakertext = BakerText(normalize=False,start=0,end=100,path="L:/baker/")
-bakeraudio = BakerAudio(start=0,end=100,path="L:/baker/",return_len=True)
+is_ipa = True
+from ipa import ipa_pho_dict
+if is_ipa: config["pho_config"]["word_num"] = len(ipa_pho_dict)
+
+bakertext = BakerText(normalize=False,start=0,end=500,path="L:/baker/",ipa=True)
+bakeraudio = BakerAudio(start=0,end=500,path="L:/baker/",return_len=True)
+
+ljspeechtext = LJSpeechText(start=0,end=500)
+ljspeechaudio = LJSpeechAudio(start=0,end=500,path="L:/LJSpeech/",return_len=True)
+
+from dataset import CombinedTextDataset,CombinedAudioDataset
+textdataset = CombinedTextDataset(bakertext,ljspeechtext)
+audiodataset = CombinedAudioDataset(bakeraudio,ljspeechaudio)
+
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
     text_batch = [torch.stack([item[i] for item in text_batch]) for i in range(len(text_batch[0]))]
     audio_batch = bakeraudio.collate(audio_batch)
     return text_batch, audio_batch
 
-loader = DataLoader(dataset=list(zip(bakertext, bakeraudio)), collate_fn=collate_fn, batch_size=16, shuffle=True)
+# loader = DataLoader(dataset=list(zip(bakertext, bakeraudio)), collate_fn=collate_fn, batch_size=16, shuffle=True)
+loader = DataLoader(dataset=list(zip(textdataset, audiodataset)), collate_fn=collate_fn, batch_size=16, shuffle=True)
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 ae = AE(params).to(device)
 ae = loadModel(ae,"ae20k16_1000","./model")
 def learning_rate(d_model=256,step=1,warmup_steps=400):
     return (1/math.sqrt(d_model)) * min(1/math.sqrt(step),step*warmup_steps**-1.5)
+
 
 model = StyleSpeech2_FF(config,embed_dim=16).to(device)
 optimizer = optim.Adam(model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=0.0001)
@@ -45,15 +59,16 @@ loss_log_name =  f"./log/loss_{modelname}"
 
 with open("./save/cache/phoneme.json","r") as f: 
     phoneme_set = json.loads(f.read())["phoneme"]
-aligner = ASR(80,len(phoneme_set)+1).to(device)
-aligner = loadModel(aligner,"aligner_500","./model/")
+# aligner = ASR(80,len(phoneme_set)+1).to(device)
+aligner = ASR(80,len(ipa_pho_dict)+1).to(device)
+aligner = loadModel(aligner,"aligner_200","./model/")
 
 fastloss = FastSpeechLoss().to(device)
 
 melspec_transform = MelSpectrogram(sample_rate=48000,n_fft=1024,hop_length=1024,n_mels=80).to(device)
 
 
-for epoch in range(0,1001):
+for epoch in range(0,501):
     total_loss = 0
     fastLoss_ = 0
     duration_loss_ = 0

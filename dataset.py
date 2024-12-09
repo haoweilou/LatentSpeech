@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
+import torch.utils
+import torch.utils.data
 from function import load_audio, slide_window, resample, save_audio
 from torchvision import transforms
 import torchaudio
@@ -15,6 +17,10 @@ import pandas as pd
 from function import loadModel, load_audio
 from torch.nn.utils.rnn import pad_sequence
 import json
+from ipa import pinyin_sentence_to_ipa,mandarin_chinese_to_ipa
+import re
+import pandas as pd
+
 def preprocess(sample_rate,audio,filename):
     mel_args = {
       'sample_rate': sample_rate,
@@ -63,7 +69,7 @@ class BakerAudio(torch.utils.data.Dataset):
         output = pad_sequence(minibatch,batch_first=True) #Batch,T
         if output.shape[-1] >= 48000*10:
             output = output[:,:48000*10]
-            audio_len = 48000*10
+            audio_len = torch.tensor([48000*10 for _ in minibatch])
         if self.return_len: 
             return output.unsqueeze(1), audio_len
         else:
@@ -81,48 +87,91 @@ class BakerAudio(torch.utils.data.Dataset):
     
 class LJSpeechAudio(torch.utils.data.Dataset):
     """This dataset only contain the audio file of baker dataset, it is meant to be used when train AE"""
-    def __init__(self,start=0,end=10000,path="/home/haoweilou/scratch/LJSpeech/"):
+    def __init__(self,start=0,end=10000,path="/home/haoweilou/scratch/LJSpeech/",return_len=False):
         super(LJSpeechAudio, self).__init__()
         audio_path = path
         audio_files = os.listdir(f"{audio_path}wavs/")
         audio_files = [f"{audio_path}wavs/{a}" for a in audio_files][start:end]
         audios = [load_audio(f)[0][0] for f in tqdm(audio_files)]
+        
         resampler = torchaudio.transforms.Resample(orig_freq=22050, new_freq=48000)
         audios = [pad16(resampler(a)) for a in audios]
+        self.audio_lens = [len(audios[i]) for i in range(len(audios))]
         self.audios = audios
         self.max_word_len = 512
-        
+        self.return_len = return_len
+
     def collate(self, minibatch):
+        if self.return_len:
+            minibatch_ = [a[0] for a in minibatch]
+            audio_len = torch.tensor([a[1] for a in minibatch])
+            minibatch = minibatch_
         output = pad_sequence(minibatch,batch_first=True) #Batch,T
-        if output.shape[-1] >= 48000*9:
-            output = output[:,:48000*9]
-        return output.unsqueeze(1)
+        if output.shape[-1] >= 48000*10:
+            output = output[:,:48000*10]
+            audio_len = torch.tensor([48000*10 for _ in minibatch])
+        if self.return_len: 
+            return output.unsqueeze(1), audio_len
+        else:
+            return output.unsqueeze(1) 
 
     def __getitem__(self, index):
-        return self.audios[index]
+        if self.return_len == True:
+            return self.audios[index], self.audio_lens[index]
+        else: 
+            return self.audios[index]
 
     def __len__(self):
         return len(self.audios)
     
 class BakerText(torch.utils.data.Dataset):
-    def __init__(self,normalize=True,path="D:/baker/",start=0,end=10000):
+    def __init__(self,normalize=True,path="D:/baker/",start=0,end=10000,ipa=False):
         super(BakerText, self).__init__()
         self.max_word_len = 512
         self.path = path
-        self.pho_dict = json.loads(open("./save/cache/phoneme.json","r").read())["phoneme"]
-        self.phonemes = json.loads(open("./save/cache/baker_hidden.json","r").read())
+        if not ipa:
+            self.pho_dict = json.loads(open("./save/cache/phoneme.json","r").read())["phoneme"]
+            self.phonemes = json.loads(open("./save/cache/baker_hidden.json","r").read())
 
-        self.keys = list(self.phonemes.keys())[start:end]
-        x_raw = [self.phonemes[k]["phoneme"] for k in self.keys]
-        s_raw = [self.phonemes[k]["tone_list"] for k in self.keys]
-        self.src_len = torch.tensor([len(self.phonemes[k]["phoneme"]) for k in self.keys])
-        self.mel_len = torch.tensor([self.phonemes[k]["mel_size"] for k in self.keys])
-        self.num_sentence = end - start
-        
-        self.x = pad_sequence(self.pho2idx(x_raw,self.pho_dict,normalize=normalize),batch_first=True,padding_value=0)
-        self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in s_raw],batch_first=True,padding_value=0)
-        # self.l = pad_sequence([torch.tensor(self.phonemes[k]["mel_len"]) for k in self.keys],batch_first=True,padding_value=0)
-        self.l = pad_sequence([torch.ceil(torch.tensor(self.phonemes[k]["pho_len"])/4800/0.02) for k in self.keys],batch_first=True,padding_value=0)
+            self.keys = list(self.phonemes.keys())[start:end]
+            x_raw = [self.phonemes[k]["phoneme"] for k in self.keys]
+            s_raw = [self.phonemes[k]["tone_list"] for k in self.keys]
+            self.src_len = torch.tensor([len(self.phonemes[k]["phoneme"]) for k in self.keys])
+            self.mel_len = torch.tensor([self.phonemes[k]["mel_size"] for k in self.keys])
+            self.num_sentence = end - start
+            
+            self.x = pad_sequence(self.pho2idx(x_raw,self.pho_dict,normalize=normalize),batch_first=True,padding_value=0)
+            self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in s_raw],batch_first=True,padding_value=0)
+            # self.l = pad_sequence([torch.tensor(self.phonemes[k]["mel_len"]) for k in self.keys],batch_first=True,padding_value=0)
+            self.l = pad_sequence([torch.ceil(torch.tensor(self.phonemes[k]["pho_len"])/4800/0.02) for k in self.keys],batch_first=True,padding_value=0)
+        else: 
+            from ipa import ipa_pho_dict
+            self.pho_dict = ipa_pho_dict
+            with open(f"{path}ProsodyLabeling/000001-010000.txt","r",encoding="utf-8") as f: 
+                lines = f.readlines()
+            hanzis = []
+            for i in range(start,end):
+                sentence = ''.join(re.findall(r'[\u4e00-\u9fff]', lines[i*2]))
+                hanzis.append(sentence)
+
+            ipa_phonemes, tones = [],[] 
+            src_lens = []
+            for hanzi in hanzis:
+                ip,t = mandarin_chinese_to_ipa(hanzi)
+                ipa_phonemes.append(ip)
+                tones.append(t)
+                src_lens.append(len(ip))
+                
+            self.src_len = torch.tensor(src_lens)
+            self.max_len = max(self.src_len)
+
+            ipd_idx = [[ipa_pho_dict[i] for i in row] for row in ipa_phonemes]
+            self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
+            self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in tones],batch_first=True,padding_value=0)
+            self.l = torch.ones_like(self.x)
+            self.mel_len = torch.ones_like(self.src_len)
+
+
 
 
     def pho2idx(self,phonemes,pho_list:list,normalize=True):
@@ -140,3 +189,82 @@ class BakerText(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.x)
+    
+
+class LJSpeechText(torch.utils.data.Dataset):
+    def __init__(self,path="D:/LJSpeech/",start=0,end=10000):
+        super().__init__()
+        self.max_word_len = 512
+        self.path = path
+        
+        from ipa import ipa_pho_dict,english_sentence_to_ipa
+        self.pho_dict = ipa_pho_dict
+        with open(f"{path}metadata.csv","r",encoding="utf-8") as f: 
+            lines = f.readlines()
+        text = []
+        for line in lines: 
+            text.append(line.split("|")[-1])
+        # text = pd.read_csv(f"{path}metadata.csv",sep="|",header=None)
+        english = []
+        for i in range(start,end):
+            sentence = ''.join(re.sub(r'[^a-zA-Z\s]', '', text[i].lower()))
+            english.append(sentence.strip())
+
+        ipa_phonemes, stress = [],[] 
+        src_lens = []
+        for sentence in english:
+            ip,t = english_sentence_to_ipa(sentence)
+           
+            ipa_phonemes.append(ip)
+            stress.append(t)
+            src_lens.append(len(ip))
+        self.src_len = torch.tensor(src_lens)
+        self.max_len = max(self.src_len)
+
+        ipd_idx = [[ipa_pho_dict[i] for i in row] for row in ipa_phonemes]
+        self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
+        # self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in stress],batch_first=True,padding_value=0)
+        self.s = torch.zeros_like(self.x)
+        self.l = torch.ones_like(self.x)
+        self.mel_len = torch.ones_like(self.src_len)
+
+    
+    def __getitem__(self, index):
+        return self.x[index], self.s[index], self.l[index], self.src_len[index], self.mel_len[index]
+
+    def __len__(self):
+        return len(self.x)
+    
+class CombinedTextDataset(torch.utils.data.Dataset):
+    def __init__(self, text_dataset1, text_dataset2):
+        # Ensure the text and audio datasets have the same length
+        assert len(text_dataset1) == len(text_dataset2)
+        self.x = pad_sequence(list(text_dataset1.x)+list(text_dataset2.x),batch_first=True)
+        self.s = pad_sequence(list(text_dataset1.s)+list(text_dataset2.s),batch_first=True)
+        self.l = torch.ones_like(self.x)
+        self.src_len = torch.concat([text_dataset1.src_len,text_dataset2.src_len],dim=0)
+        self.mel_len = torch.ones_like(self.src_len)
+
+    
+    def __getitem__(self, index):
+        return self.x[index], self.s[index], self.l[index], self.src_len[index], self.mel_len[index]
+
+    def __len__(self):
+        return len(self.x)
+    
+
+class CombinedAudioDataset(torch.utils.data.Dataset):
+    def __init__(self, audio_dataset1, audio_dataset2):
+        # Ensure the text and audio datasets have the same length
+        assert len(audio_dataset1) == len(audio_dataset1)
+        self.audio = pad_sequence(list(audio_dataset1.audios)+list(audio_dataset2.audios),batch_first=True)
+        #list
+        self.audio_lens = audio_dataset1.audio_lens+audio_dataset2.audio_lens
+
+    
+    def __getitem__(self, index):
+        return self.audio[index],self.audio_lens[index]
+
+    def __len__(self):
+        return len(self.audio)
+        

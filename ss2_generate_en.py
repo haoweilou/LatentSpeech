@@ -8,13 +8,13 @@ from flow import AE
 from function import loadModel,saveModel,save_audio,draw_wave,draw_heatmap
 import pandas as pd
 
-from dataset import BakerAudio,BakerText
+from dataset import LJSpeechText,LJSpeechAudio
 from torch.utils.data import DataLoader
 from params import params
 from tts import StyleSpeech2,StyleSpeech2_FF
 
-bakertext = BakerText(normalize=False,start=0,end=100,path="D:/baker/")
-bakeraudio = BakerAudio(start=0,end=100,path="D:/baker/",return_len=True)
+bakertext = LJSpeechText(start=0,end=100,path="L:/LJSpeech/")
+bakeraudio = LJSpeechAudio(start=0,end=100,path="L:/LJSpeech/",return_len=True)
 
 
 # bakertext = BakerText(normalize=False,start=0,end=100)
@@ -40,7 +40,8 @@ def learning_rate(d_model=256,step=1,warmup_steps=400):
 # modelname = "StyleSpeech2"
 # model = StyleSpeech2(config).to(device)
 # model = loadModel(model,"StyleSpeech2_600","./model/")
-
+from ipa import ipa_pho_dict
+config["pho_config"]["word_num"] = len(ipa_pho_dict)
 modelname = "StyleSpeech2_FF"
 model = StyleSpeech2_FF(config,embed_dim=16).to(device)
 model = loadModel(model,f"{modelname}_300","./model/")
@@ -74,18 +75,19 @@ for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
     draw_wave(audio[0][0].to("cpu"),f"real")
 
     
-    from function import phone_to_phone_idx,hanzi_to_pinyin
-    hanzi = "娄皓维爱小张娄皓维今天去学校学习了而且还打了个战锤真棒"
-    pinyin = hanzi_to_pinyin(hanzi)
-    print(pinyin)
+    english = "hello world my name is style speech"
+    from ipa import english_sentence_to_ipa, ipa_to_idx
+    english,tone = english_sentence_to_ipa(english)
+    print(english)
     # # pinyin = ["la1","la2","la3","la4","la5"]
-    phone_idx,tone = phone_to_phone_idx(pinyin)
+    phone_idx = ipa_to_idx(english)
     # print(phone_idx,tone)
     d = 10
     duration = torch.tensor([[d for _ in range(len(phone_idx))]]).to(device)
     phone_mask = torch.tensor([[0 for _ in range(len(phone_idx))]]).to(device)
     phone_idx = torch.tensor([phone_idx]).to(device)  
-    tone = torch.tensor([tone]).to(device)
+    # tone = torch.tensor([tone]).to(device)
+    tone = torch.zeros_like(phone_idx)
     hidden_mask = torch.tensor([[0 for _ in range(1024)]]).to(device)
 
     src_lens = torch.tensor([phone_idx.shape[-1]]).to(device)
@@ -99,7 +101,7 @@ for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
     audio_f = ae.pqmf.inverse(pqmf_audio)
     audio_f = audio_f.detach().cpu()
     print(audio_f.shape)
-    save_audio(audio_f[0],48000,f"custom","./sample/")
+    save_audio(audio_f[0],48000,f"custom_en","./sample/")
     
     break
 
