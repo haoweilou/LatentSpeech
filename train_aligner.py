@@ -19,7 +19,6 @@ from ipa import ipa_pho_dict
 T = 50                  #Input Sequence Length, melspec length
 # C = len(phoneme_set)+1  #Number of Phoneme Class, include blank, 87+1=88
 C = len(ipa_pho_dict)+1   #include empty already
-print(ipa_pho_dict)
 N = 16                  #Batch size
 S = 128                 #Target sequence length of the longest target in batch (zero padding) Phoneme length
 S_min = 5               #Minium sequence length 5, min Phoneme length
@@ -30,20 +29,19 @@ lr = learning_rate()
 print("Initial learnign rate: ",lr)
 print("Load Dataset: ")
 model_name = "aligner"
-
+root = "/home/haoweilou/scratch/"
 loss_log = pd.DataFrame({"total_loss":[],"ctc_loss":[]})
-bakertext = BakerText(normalize=False,start=0,end=500,path="L:/baker/",ipa=True)
-bakeraudio = BakerAudio(start=0,end=500,path="L:/baker/",return_len=True)
+bakertext = BakerText(normalize=False,start=0,end=10000,path=f"{root}baker/",ipa=True)
+bakeraudio = BakerAudio(start=0,end=10000,path=f"{root}baker/",return_len=True)
 
-ljspeechtext = LJSpeechText(start=0,end=500)
-ljspeechaudio = LJSpeechAudio(start=0,end=500,path="L:/LJSpeech/",return_len=True)
+ljspeechtext = LJSpeechText(start=0,end=10000,path=f"{root}LJSpeech/")
+ljspeechaudio = LJSpeechAudio(start=0,end=10000,path=f"{root}LJSpeech/",return_len=True)
 
 from dataset import CombinedTextDataset,CombinedAudioDataset
 textdataset = CombinedTextDataset(bakertext,ljspeechtext)
 audiodataset = CombinedAudioDataset(bakeraudio,ljspeechaudio)
 
-# print(audiodataset.audio.shape,audiodataset.audio_lens)
-# bakeraudio = BakerAudio(start=0,end=1000,return_len=True)
+
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
     text_batch = [torch.stack([item[i] for item in text_batch]) for i in range(len(text_batch[0]))]
@@ -51,9 +49,8 @@ def collate_fn(batch):
     return text_batch, audio_batch
 
 
-# loader = DataLoader(dataset=list(zip(bakertext, bakeraudio)), collate_fn=collate_fn, batch_size=16, shuffle=True)
-# loader = DataLoader(dataset=list(zip(ljspeechtext, ljspeechaudio)), collate_fn=collate_fn, batch_size=16, shuffle=True)
-loader = DataLoader(dataset=list(zip(textdataset, audiodataset)), collate_fn=collate_fn, batch_size=16, shuffle=True)
+
+loader = DataLoader(dataset=list(zip(textdataset, audiodataset)), collate_fn=collate_fn, batch_size=32, shuffle=True)
 
 aligner = ASR(input_dim=feature_dim,output_dim=C).to(device)
 optimizer = optim.Adam(aligner.parameters(), betas=(0.9,0.98),eps=1e-9,lr=0.001)
@@ -61,7 +58,7 @@ CTCLoss = nn.CTCLoss()
 #train aligner first 
 melspec_transform = MelSpectrogram(sample_rate=48000,n_fft=1024,hop_length=1024,n_mels=80).to(device)
 
-for epoch in range(1001):
+for epoch in range(2001):
     CTCLoss_ = 0
     for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
         optimizer.zero_grad()
