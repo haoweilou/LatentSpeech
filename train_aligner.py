@@ -30,6 +30,7 @@ print("Initial learnign rate: ",lr)
 print("Load Dataset: ")
 model_name = "aligner"
 root = "/home/haoweilou/scratch/"
+# root = "L:/"
 loss_log = pd.DataFrame({"total_loss":[],"ctc_loss":[]})
 bakertext = BakerText(normalize=False,start=0,end=10000,path=f"{root}baker/",ipa=True)
 bakeraudio = BakerAudio(start=0,end=10000,path=f"{root}baker/",return_len=True)
@@ -50,7 +51,7 @@ def collate_fn(batch):
 
 
 
-loader = DataLoader(dataset=list(zip(textdataset, audiodataset)), collate_fn=collate_fn, batch_size=32, shuffle=True)
+loader = DataLoader(dataset=list(zip(textdataset, audiodataset)), collate_fn=collate_fn, batch_size=64, shuffle=True)
 
 aligner = ASR(input_dim=feature_dim,output_dim=C).to(device)
 optimizer = optim.Adam(aligner.parameters(), betas=(0.9,0.98),eps=1e-9,lr=0.001)
@@ -62,18 +63,14 @@ for epoch in range(2001):
     CTCLoss_ = 0
     for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
         optimizer.zero_grad()
-        x,s,_,x_lens,_ = [tensor.to(device) for tensor in text_batch]
+        x,s,_,x_lens,_,language = [tensor.to(device) for tensor in text_batch]
         audio,y_lens = audio_batch[0].to(device),audio_batch[1].to(device)
         with torch.no_grad():
             melspec = melspec_transform(audio).squeeze(1) #B,T,80
             melspec = melspec.permute(0,2,1)#B,80,T
             y_lens = torch.ceil(y_lens/16/64).long()
-    
-        if feature_type == "Melspec":
-            y = melspec           #batch size, phoneme length
-            
-        x_f = aligner(y)  # [batch_size, seq_len, num_phonemes]
-
+        y = melspec           #batch size, phoneme length
+        x_f = aligner(y,language)  # [batch_size, seq_len, num_phonemes]            
         x_f = x_f.log_softmax(2).transpose(0, 1) # [seq_len, batch_size, num_phonemes]
         loss = CTCLoss(x_f, x, y_lens, x_lens)
 

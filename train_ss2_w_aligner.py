@@ -73,7 +73,8 @@ for epoch in range(0,501):
     fastLoss_ = 0
     duration_loss_ = 0
     for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
-        x,s,_,x_lens,_ = [tensor.to(device) for tensor in text_batch]
+        x,s,_,x_lens,_,language = [tensor.to(device) for tensor in text_batch]
+        # print(language)
         audio,y_lens = audio_batch[0].to(device),audio_batch[1].to(device)
         with torch.no_grad():
             y,_ = ae.encode(audio) 
@@ -89,7 +90,7 @@ for epoch in range(0,501):
         prob_matrix = aligner(melspec)  # [batch_size, y_len, num_phonemes], probability 
         l = agd_duration(prob_matrix,x_max_len=x.shape[-1])
         
-        y_pred,log_l,y_mask = model(x, s, x_lens,l=l,y_lens=y_lens,max_y_len=y.shape[-1])
+        y_pred,log_l,y_mask = model(x, s, x_lens,l=l,y_lens=y_lens,max_y_len=y.shape[-1],language=language)
 
         loss,tts_loss,duration_loss = fastloss(y,y_pred,log_l,l,y_mask)
         loss.backward()

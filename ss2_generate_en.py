@@ -44,7 +44,7 @@ from ipa import ipa_pho_dict
 config["pho_config"]["word_num"] = len(ipa_pho_dict)
 modelname = "StyleSpeech2_FF"
 model = StyleSpeech2_FF(config,embed_dim=16).to(device)
-model = loadModel(model,f"{modelname}_300","./model/")
+model = loadModel(model,f"{modelname}_500","./model/")
 
 import torchaudio.transforms as T
 
@@ -61,7 +61,8 @@ for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
     noise_scale = 1
     length_scale = 1.0
     # (y_gen, *_), *_, (attn_gen, *_) = model(x, s, x_lens,y_lens=y_lens, gen=True, noise_scale=noise_scale, length_scale=length_scale,g=speaker)
-    y_gen,log_l,y_mask = model(x, s, x_lens,y_lens=y_lens,max_y_len=y.shape[-1])
+    language = torch.ones_like(x).to(dtype=torch.long,device=x.device)
+    y_gen,log_l,y_mask = model(x, s, x_lens,y_lens=y_lens,max_y_len=y.shape[-1],language=language)
     print(y_gen.shape)
     draw_heatmap(y_gen[0].detach().cpu().numpy(),name="ss2_heat")
     draw_heatmap(y[0].detach().cpu().numpy(),name="real_heat")
@@ -73,35 +74,5 @@ for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
     audio = audio.detach().cpu()
     save_audio(audio[0],48000,f"real","./sample/")
     draw_wave(audio[0][0].to("cpu"),f"real")
-
-    
-    english = "hello world my name is style speech"
-    from ipa import english_sentence_to_ipa, ipa_to_idx
-    english,tone = english_sentence_to_ipa(english)
-    print(english)
-    # # pinyin = ["la1","la2","la3","la4","la5"]
-    phone_idx = ipa_to_idx(english)
-    # print(phone_idx,tone)
-    d = 10
-    duration = torch.tensor([[d for _ in range(len(phone_idx))]]).to(device)
-    phone_mask = torch.tensor([[0 for _ in range(len(phone_idx))]]).to(device)
-    phone_idx = torch.tensor([phone_idx]).to(device)  
-    # tone = torch.tensor([tone]).to(device)
-    tone = torch.zeros_like(phone_idx)
-    hidden_mask = torch.tensor([[0 for _ in range(1024)]]).to(device)
-
-    src_lens = torch.tensor([phone_idx.shape[-1]]).to(device)
-    mel_lens = torch.tensor([d*phone_idx.shape[-1]]).to(device)
-    speaker = torch.zeros(src_lens.shape).to(dtype=x_lens.dtype,device=x_lens.device)
-
-    # (y_gen, *_), *_, (attn_gen, *_) = model(phone_idx, tone, src_lens,y_lens=mel_lens, gen=True, noise_scale=noise_scale, length_scale=length_scale,g=speaker)
-    y_gen,log_l,y_mask = model(phone_idx, tone, src_lens,y_lens=mel_lens,max_y_len=500)
-
-    pqmf_audio = ae.decode(y_gen)
-    audio_f = ae.pqmf.inverse(pqmf_audio)
-    audio_f = audio_f.detach().cpu()
-    print(audio_f.shape)
-    save_audio(audio_f[0],48000,f"custom_en","./sample/")
-    
     break
 

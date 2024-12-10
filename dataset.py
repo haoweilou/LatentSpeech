@@ -17,7 +17,8 @@ import pandas as pd
 from function import loadModel, load_audio
 from torch.nn.utils.rnn import pad_sequence
 import json
-from ipa import pinyin_sentence_to_ipa,mandarin_chinese_to_ipa
+from ipa import pinyin_sentence_to_ipa,mandarin_chinese_to_ipa,ipa_pho_dict,english_sentence_to_ipa
+
 import re
 import pandas as pd
 
@@ -197,7 +198,6 @@ class LJSpeechText(torch.utils.data.Dataset):
         self.max_word_len = 512
         self.path = path
         
-        from ipa import ipa_pho_dict,english_sentence_to_ipa
         self.pho_dict = ipa_pho_dict
         with open(f"{path}metadata.csv","r",encoding="utf-8") as f: 
             lines = f.readlines()
@@ -244,10 +244,11 @@ class CombinedTextDataset(torch.utils.data.Dataset):
         self.l = torch.ones_like(self.x)
         self.src_len = torch.concat([text_dataset1.src_len,text_dataset2.src_len],dim=0)
         self.mel_len = torch.ones_like(self.src_len)
+        self.language = torch.cat([torch.zeros((len(text_dataset1),self.x.shape[-1])),torch.ones((len(text_dataset1),self.x.shape[-1]))],dim=0).long()
 
     
     def __getitem__(self, index):
-        return self.x[index], self.s[index], self.l[index], self.src_len[index], self.mel_len[index]
+        return self.x[index], self.s[index], self.l[index], self.src_len[index], self.mel_len[index], self.language[index]
 
     def __len__(self):
         return len(self.x)

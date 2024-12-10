@@ -186,6 +186,34 @@ class Encoder(nn.Module):
             enc_x, enc_slf_attn = fft(enc_x, mask=mask, slf_attn_mask=slf_attn_mask)
         return enc_x
     
+class AbstractEncoder(nn.Module):
+    """Some Information about Encoder"""
+    def __init__(self,num_embed=2,embed_dim=256,max_word=512):
+        super().__init__()
+        self.embed = nn.Embedding(
+            num_embed,embed_dim
+        )
+        self.pos_enc = nn.Parameter(
+            sinusoid_encoding_table(max_word,embed_dim).unsqueeze(0),
+            requires_grad=False
+        )
+        
+        self.proj_layers = nn.ModuleList(
+            [nn.Linear(embed_dim,embed_dim) for _ in range(1)]
+        )
+
+    def forward(self, x):
+        #x = BATCH_SIZE, MAX_LEN
+        batch_size, max_len =  x.shape[0],  x.shape[1]
+        #mask = 1, MAX_LEN, MAX_SEQ_LEN
+        #pos_enc = BATCH_SIZE, MAX_LEN, WORD_DIM
+        pos_enc = self.pos_enc[:,:max_len,:].expand(batch_size, -1, -1)
+        #enc_x = word_embed + pos_enc = BATCH_SIZE, MAX_SEQ_LEN, , WORD_DIM
+        enc_x = self.embed(x.long()) + pos_enc
+        for l in self.proj_layers:
+            enc_x =  l(enc_x)
+        return enc_x 
+
 class CONV(nn.Module):
     """
     Convolution Module
@@ -456,7 +484,7 @@ class ContextEncoder(nn.Module):
         self.max_word = config["max_seq_len"] + 1
         self.pho_encoder = Encoder(config["pho_config"],max_word=self.max_word)
         self.style_encoder = Encoder(config["style_config"],max_word=self.max_word)
-
+        self.language_encoder = AbstractEncoder(2,256)
         self.fc = nn.Sequential(
             nn.Linear(
                 2*config["pho_config"]["word_dim"],
@@ -465,8 +493,15 @@ class ContextEncoder(nn.Module):
             nn.LeakyReLU(.2),
 
         )
-        
-    def forward(self, x, s, x_lens):
+    
+    def fused_add_tanh_sigmoid_multiply(self,x,g):
+        in_act = x + g
+        t_act = torch.tanh(in_act)
+        s_act = torch.sigmoid(in_act)
+        acts = t_act * s_act
+        return acts
+
+    def forward(self, x, s, x_lens,language):
         #in: [b,t] => out [b,t,c]
         batch_size, max_src_len = x.shape[0],x.shape[1]
         x_mask = get_mask_from_lengths(x_lens,max_len=max_src_len)
@@ -474,7 +509,11 @@ class ContextEncoder(nn.Module):
         style_embed = self.style_encoder(s,x_mask)
         # print(pho_embed,style_embed)
         fused = torch.cat([pho_embed, style_embed],dim=2) # [b, t, c]
-        fused = self.fc(fused)
+        fused = self.fc(fused)# [b, t, c]
+        lang_embed = self.language_encoder(language)#b,t,c
+        # print(x.shape,lang_embed.shape)
+
+        fused = self.fused_add_tanh_sigmoid_multiply(fused,lang_embed)
         fused = fused * torch.logical_not(x_mask).unsqueeze(2).to(dtype=fused.dtype)#[b,t,c] * [b,t,1]
         return fused
     
@@ -703,16 +742,16 @@ class StyleSpeech2_FF(nn.Module):
         )
         
 
-    def forward(self, x, s, x_lens,l=None,y_lens=None,max_y_len=None):
+    def forward(self, x, s, x_lens,l=None,y_lens=None,max_y_len=None,language=None):
         #l is duration of phoneme
         #0 for no mask, 1 for mask
         batch_size, max_x_len = x.shape[0],x.shape[1]
         x_mask = get_mask_from_lengths(x_lens,max_len=max_x_len)
         y_mask = get_mask_from_lengths(y_lens, max_len=max_y_len)
-        x = self.encoder(x,s,x_lens)
+        x = self.encoder(x,s,x_lens,language)
 
         x,log_l, l_rounded, _, y_mask = self.length_adaptor(x,x_mask, mel_mask=y_mask, max_len=max_y_len, duration_target=l)
-        
+          
         x,y_mask = self.fuse_decoder(x,y_mask)
         if self.output_channel != 1:
             x = x.unsqueeze(1)
