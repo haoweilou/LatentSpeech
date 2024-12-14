@@ -44,7 +44,7 @@ from ipa import ipa_pho_dict
 config["pho_config"]["word_num"] = len(ipa_pho_dict)
 modelname = "StyleSpeech2_FF"
 model = StyleSpeech2_FF(config,embed_dim=16).to(device)
-model = loadModel(model,f"{modelname}_500","./model/")
+model = loadModel(model,f"{modelname}_200","./model/")
 
 import torchaudio.transforms as T
 

@@ -504,12 +504,18 @@ class ContextEncoder(nn.Module):
     def forward(self, x, s, x_lens,language):
         #in: [b,t] => out [b,t,c]
         batch_size, max_src_len = x.shape[0],x.shape[1]
+        
         x_mask = get_mask_from_lengths(x_lens,max_len=max_src_len)
         pho_embed = self.pho_encoder(x,x_mask)
         style_embed = self.style_encoder(s,x_mask)
         # print(pho_embed,style_embed)
-        fused = torch.cat([pho_embed, style_embed],dim=2) # [b, t, c]
-        fused = self.fc(fused)# [b, t, c]
+        mask = (language == 0).unsqueeze(-1).expand(-1,-1,pho_embed.shape[-1])  # Shape: [b, 1], for broadcasting
+
+        concat_embed = torch.cat([pho_embed, style_embed], dim=2)  # Shape: [b, t, c+style_dim]
+        concat_embed = self.fc(concat_embed)# [b, t, c]
+        # Use the mask to choose between concatenated and original pho_embed
+        fused = torch.where(mask, concat_embed, pho_embed)  # Shape: [b, t, c]
+
         lang_embed = self.language_encoder(language)#b,t,c
         # print(x.shape,lang_embed.shape)
 

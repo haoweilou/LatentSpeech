@@ -1,4 +1,5 @@
 import torch
+import torch.utils
 import torchaudio
 import torchaudio.transforms as T
 import torch.nn.functional as F
@@ -314,3 +315,45 @@ def agd_duration(prob_matrix,x_max_len=None):
     if x_max_len is not None: 
         l = F.pad(l,(0, x_max_len - l.shape[-1]),value=0)
     return l
+
+
+
+def fl_duration(prob_matrix,target,x_max_len=None):
+    import torchaudio.functional as F
+    import torch.nn.functional as nnF
+
+    from ipa import ipa_pho_dict
+    #phon_prob [batch_size, y_len, num_phonemes]
+    #  
+    # prob_matrix = torch.argmax(prob_matrix,dim=2) # [batch_size, y len]
+    xs = [seq[seq != 0] for seq in target]
+    l_out = []
+    for pm,x in zip(prob_matrix,xs):
+        # print(pm.shape,x.shape)
+        alignments, scores = F.forced_align(pm.unsqueeze(0), x.unsqueeze(0), blank=0)
+        # print(alignments,scores)
+        token_spans = F.merge_tokens(alignments[0], scores[0])
+        # print(token_spans)
+        l = []
+        for i,s in enumerate(token_spans):
+            if i == len(token_spans) -1:
+                s.end = pm.shape[0]
+            elif i != len(token_spans) -1 and s.end != token_spans[i+1].start:
+                if s.token == ipa_pho_dict["sil"]:
+                    s.end = token_spans[i+1].start
+                elif token_spans[i+1].token == ipa_pho_dict["sil"]:
+                    token_spans[i+1].start = s.end
+                else: 
+                    s.end = token_spans[i+1].start
+            # print(s)
+            l.append(s.end-s.start)
+        l_out.append(torch.tensor(l))
+    l_out = pad_sequence(l_out,batch_first=True)
+    l_out = nnF.pad(l_out,(0,target.shape[-1]-l_out.shape[-1]),value=0)
+    return l_out
+        # break
+            
+   
+    # if x_max_len is not None: 
+    #     l = F.pad(l,(0, x_max_len - l.shape[-1]),value=0)
+    # return l

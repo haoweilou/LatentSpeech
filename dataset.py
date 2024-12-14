@@ -214,7 +214,6 @@ class LJSpeechText(torch.utils.data.Dataset):
         src_lens = []
         for sentence in english:
             ip,t = english_sentence_to_ipa(sentence)
-           
             ipa_phonemes.append(ip)
             stress.append(t)
             src_lens.append(len(ip))
@@ -244,7 +243,7 @@ class CombinedTextDataset(torch.utils.data.Dataset):
         self.l = torch.ones_like(self.x)
         self.src_len = torch.concat([text_dataset1.src_len,text_dataset2.src_len],dim=0)
         self.mel_len = torch.ones_like(self.src_len)
-        self.language = torch.cat([torch.zeros((len(text_dataset1),self.x.shape[-1])),torch.ones((len(text_dataset1),self.x.shape[-1]))],dim=0).long()
+        self.language = torch.cat([torch.zeros((len(text_dataset1),self.x.shape[-1])),torch.ones((len(text_dataset2),self.x.shape[-1]))],dim=0).long()
 
     
     def __getitem__(self, index):

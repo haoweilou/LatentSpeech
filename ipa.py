@@ -11,6 +11,7 @@ arpabet_to_ipa = {
     'OY': 'ɔɪ', 'P': 'p', 'R': 'ɹ', 'S': 's', 'SH': 'ʃ',
     'T': 't', 'TH': 'θ', 'UH': 'ʊ', 'UW': 'u', 'V': 'v',
     'W': 'w', 'Y': 'j', 'Z': 'z', 'ZH': 'ʒ'
+    , "SILIENT":"sil"
 }
 # print(len(arpabet_to_ipa.keys()))
 pronouncing_dict = cmudict.dict()
@@ -84,6 +85,8 @@ def english_sentence_to_ipa(sentence):
     
     for word in sentence.split(" "):
         ipa_phoneme, stress = word_to_ipa(word)
+        ipa_phoneme.append("sil")
+        stress.append(0)
         ipa_phonemes += ipa_phoneme
         stresses += stress
     return ipa_phonemes, stresses
@@ -112,6 +115,7 @@ pinyin_to_ipa = {
     "ua": "wa", "uo": "wo", "uai": "waɪ", "ui": "weɪ",
     "uan": "wan", "un": "wən", "uang": "wɑŋ", "ue": "yɛ", "van": "yan", "vn": "yn",
     "ve":"yɛ"
+    ,"SILIENT":"sil"
 }
 
 from pypinyin import pinyin, lazy_pinyin, Style
@@ -180,6 +184,7 @@ def ipa_to_idx(ipa_phonemes):
 all_ipa_phoneme = list(pinyin_to_ipa.values())+list(arpabet_to_ipa.values())
 all_ipa_phoneme = sorted(list(set(all_ipa_phoneme)))
 all_ipa_phoneme = ["EMPTY"] + all_ipa_phoneme
+print(all_ipa_phoneme)
 ipa_pho_dict = {k:i for i,k  in enumerate(all_ipa_phoneme)}
 
 # print(len(ipa_pho_dict))

@@ -13,8 +13,8 @@ from torch.utils.data import DataLoader
 from params import params
 from tts import StyleSpeech2,StyleSpeech2_FF
 
-bakertext = LJSpeechText(start=0,end=100,path="L:/LJSpeech/")
-bakeraudio = LJSpeechAudio(start=0,end=100,path="L:/LJSpeech/",return_len=True)
+bakertext = LJSpeechText(start=200,end=201,path="L:/LJSpeech/")
+bakeraudio = LJSpeechAudio(start=200,end=201,path="L:/LJSpeech/",return_len=True)
 
 
 # bakertext = BakerText(normalize=False,start=0,end=100)
@@ -44,7 +44,7 @@ from ipa import ipa_pho_dict
 config["pho_config"]["word_num"] = len(ipa_pho_dict)
 modelname = "StyleSpeech2_FF"
 model = StyleSpeech2_FF(config,embed_dim=16).to(device)
-model = loadModel(model,f"{modelname}_500","./model/")
+model = loadModel(model,f"{modelname}_50","./model/")
 
 import torchaudio.transforms as T
 

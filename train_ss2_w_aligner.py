@@ -5,7 +5,7 @@ import torch.optim as optim
 from params import params
 # from tts import DurationAligner
 from flow import AE
-from function import loadModel,saveModel, agd_duration
+from function import loadModel,saveModel, agd_duration,fl_duration
 import pandas as pd
 
 from dataset import BakerAudio,BakerText,LJSpeechAudio,LJSpeechText
@@ -24,15 +24,21 @@ is_ipa = True
 from ipa import ipa_pho_dict
 if is_ipa: config["pho_config"]["word_num"] = len(ipa_pho_dict)
 
-bakertext = BakerText(normalize=False,start=0,end=500,path="L:/baker/",ipa=True)
-bakeraudio = BakerAudio(start=0,end=500,path="L:/baker/",return_len=True)
+root = "/home/haoweilou/scratch/"
+root = "L:/"
+loss_log = pd.DataFrame({"total_loss":[],"ctc_loss":[]})
+bakertext = BakerText(normalize=False,start=0,end=500,path=f"{root}baker/",ipa=True)
+bakeraudio = BakerAudio(start=0,end=500,path=f"{root}baker/",return_len=True)
 
-ljspeechtext = LJSpeechText(start=0,end=500)
-ljspeechaudio = LJSpeechAudio(start=0,end=500,path="L:/LJSpeech/",return_len=True)
+ljspeechtext = LJSpeechText(start=0,end=500,path=f"{root}LJSpeech/")
+ljspeechaudio = LJSpeechAudio(start=0,end=500,path=f"{root}LJSpeech/",return_len=True)
 
 from dataset import CombinedTextDataset,CombinedAudioDataset
-textdataset = CombinedTextDataset(bakertext,ljspeechtext)
-audiodataset = CombinedAudioDataset(bakeraudio,ljspeechaudio)
+# textdataset = CombinedTextDataset(bakertext,ljspeechtext)
+# audiodataset = CombinedAudioDataset(bakeraudio,ljspeechaudio)
+
+textdataset = CombinedTextDataset(ljspeechtext,ljspeechtext)
+audiodataset = CombinedAudioDataset(ljspeechaudio,ljspeechaudio)
 
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
@@ -49,16 +55,16 @@ ae = loadModel(ae,"ae20k16_1000","./model")
 def learning_rate(d_model=256,step=1,warmup_steps=400):
     return (1/math.sqrt(d_model)) * min(1/math.sqrt(step),step*warmup_steps**-1.5)
 
-
+lr = learning_rate()
+print(f"Initial LR: {lr}")
 model = StyleSpeech2_FF(config,embed_dim=16).to(device)
-optimizer = optim.Adam(model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=0.0001)
+optimizer = optim.Adam(model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=lr)
 
 modelname = "StyleSpeech2_FF"
 loss_log = pd.DataFrame({"total_loss":[],"tts_loss":[],"duration_loss":[]})
 loss_log_name =  f"./log/loss_{modelname}"
+# model = loadModel(model, f"{modelname}_200","./model/")
 
-with open("./save/cache/phoneme.json","r") as f: 
-    phoneme_set = json.loads(f.read())["phoneme"]
 # aligner = ASR(80,len(phoneme_set)+1).to(device)
 aligner = ASR(80,len(ipa_pho_dict)+1).to(device)
 aligner = loadModel(aligner,"aligner_200","./model/")
@@ -67,7 +73,7 @@ fastloss = FastSpeechLoss().to(device)
 
 melspec_transform = MelSpectrogram(sample_rate=48000,n_fft=1024,hop_length=1024,n_mels=80).to(device)
 
-
+step = 0
 for epoch in range(0,501):
     total_loss = 0
     fastLoss_ = 0
@@ -83,12 +89,12 @@ for epoch in range(0,501):
             melspec = melspec_transform(audio).squeeze(1) #B,T,80
             melspec = melspec.permute(0,2,1)#B,80,T
 
-        speaker = torch.zeros(x_lens.shape).to(dtype=x_lens.dtype,device=x_lens.device)
-        optimizer.zero_grad()
+            prob_matrix = aligner(melspec,language)  # [batch_size, y_len, num_phonemes], probability 
+            # l = agd_duration(prob_matrix,x_max_len=x.shape[-1])
+            l = fl_duration(prob_matrix,x,x_max_len=x.shape[-1])
 
+        optimizer.zero_grad()
         #use aligner to predict l 
-        prob_matrix = aligner(melspec)  # [batch_size, y_len, num_phonemes], probability 
-        l = agd_duration(prob_matrix,x_max_len=x.shape[-1])
         
         y_pred,log_l,y_mask = model(x, s, x_lens,l=l,y_lens=y_lens,max_y_len=y.shape[-1],language=language)
 
@@ -103,12 +109,12 @@ for epoch in range(0,501):
 
     print(f"Epoch: {epoch} Duration Loss: {duration_loss_/len(loader):.03f} TTS Loss: {fastLoss_/len(loader):.03f} Total: {total_loss/len(loader):.03f}")
 
-    if epoch % 100 == 0:
+    if epoch % 50 == 0:
         saveModel(model,f"{modelname}_{epoch}","./model/")
     loss_log.loc[len(loss_log.index)] = [total_loss/len(loader),fastLoss_/len(loader),duration_loss_/len(loader)]
     loss_log.to_csv(loss_log_name)
 
-    # if epoch > 0:
-    #     new_lr = learning_rate(step=epoch)
-    #     for param_group in optimizer.param_groups: param_group['lr'] = new_lr
-        
+    if epoch > 0:
+        new_lr = learning_rate(step=epoch)
+        for param_group in optimizer.param_groups:
+            param_group['lr'] = new_lr

@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from params import params
-# from tts import DurationAligner
 from flow import AE
 from function import loadModel,saveModel,save_audio,draw_wave,draw_heatmap
 import pandas as pd
@@ -37,35 +36,32 @@ def learning_rate(d_model=256,step=1,warmup_steps=400):
     return (1/math.sqrt(d_model)) * min(1/math.sqrt(step),step*warmup_steps**-1.5)
 
 
-# modelname = "StyleSpeech2"
-# model = StyleSpeech2(config).to(device)
-# model = loadModel(model,"StyleSpeech2_600","./model/")
 from ipa import ipa_pho_dict
 config["pho_config"]["word_num"] = len(ipa_pho_dict)
 modelname = "StyleSpeech2_FF"
 model = StyleSpeech2_FF(config,embed_dim=16).to(device)
-model = loadModel(model,f"{modelname}_500","./model/")
+model = loadModel(model,f"{modelname}_50","./model/")
+
 
 import torchaudio.transforms as T
 
 
 
 # from function import phone_to_phone_idx,hanzi_to_pinyin
-hanzi = "老师你好我是自动语音机器人"
+hanzi = "中华人民共和国今天成立了"
 from ipa import mandarin_chinese_to_ipa, ipa_to_idx
 pinyin,tone = mandarin_chinese_to_ipa(hanzi)
 print(pinyin)
 # # pinyin = ["la1","la2","la3","la4","la5"]
 phone_idx = ipa_to_idx(pinyin)
 # print(phone_idx,tone)
-d = 10
-duration = torch.tensor([[d for _ in range(len(phone_idx))]]).to(device)
 phone_mask = torch.tensor([[0 for _ in range(len(phone_idx))]]).to(device)
 phone_idx = torch.tensor([phone_idx]).to(device)  
 tone = torch.tensor([tone]).to(device)
 hidden_mask = torch.tensor([[0 for _ in range(1024)]]).to(device)
 
 src_lens = torch.tensor([phone_idx.shape[-1]]).to(device)
+d = 10
 mel_lens = torch.tensor([d*phone_idx.shape[-1]]).to(device)
 
 # (y_gen, *_), *_, (attn_gen, *_) = model(phone_idx, tone, src_lens,y_lens=mel_lens, gen=True, noise_scale=noise_scale, length_scale=length_scale,g=speaker)
@@ -79,15 +75,13 @@ print(audio_f.shape)
 save_audio(audio_f[0],48000,f"custom_cn","./sample/")
 
 
-english = "hello world my name is style speech a automatic speech generation model"
+english = "hello world how are you"
 from ipa import english_sentence_to_ipa, ipa_to_idx
 english,tone = english_sentence_to_ipa(english)
 print(english)
 # # pinyin = ["la1","la2","la3","la4","la5"]
 phone_idx = ipa_to_idx(english)
 # print(phone_idx,tone)
-d = 10
-duration = torch.tensor([[d for _ in range(len(phone_idx))]]).to(device)
 phone_mask = torch.tensor([[0 for _ in range(len(phone_idx))]]).to(device)
 phone_idx = torch.tensor([phone_idx]).to(device)  
 # tone = torch.tensor([tone]).to(device)

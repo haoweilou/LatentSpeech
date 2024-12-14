@@ -15,7 +15,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 with open("./save/cache/phoneme.json","r") as f: 
     phoneme_set = json.loads(f.read())["phoneme"]
 from ipa import ipa_pho_dict
-
+print(phoneme_set)
 T = 50                  #Input Sequence Length, melspec length
 # C = len(phoneme_set)+1  #Number of Phoneme Class, include blank, 87+1=88
 C = len(ipa_pho_dict)+1   #include empty already
@@ -32,16 +32,17 @@ model_name = "aligner"
 # root = "/home/haoweilou/scratch/"
 root = "L:/"
 loss_log = pd.DataFrame({"total_loss":[],"ctc_loss":[]})
-bakertext = BakerText(normalize=False,start=0,end=5000,path=f"{root}baker/",ipa=True)
-bakeraudio = BakerAudio(start=0,end=5000,path=f"{root}baker/",return_len=True)
+bakertext = BakerText(normalize=False,start=0,end=500,path=f"{root}baker/",ipa=True)
+bakeraudio = BakerAudio(start=0,end=500,path=f"{root}baker/",return_len=True)
 
-ljspeechtext = LJSpeechText(start=0,end=5000,path=f"{root}LJSpeech/")
-ljspeechaudio = LJSpeechAudio(start=0,end=5000,path=f"{root}LJSpeech/",return_len=True)
+ljspeechtext = LJSpeechText(start=0,end=500,path=f"{root}LJSpeech/")
+ljspeechaudio = LJSpeechAudio(start=0,end=500,path=f"{root}LJSpeech/",return_len=True)
 
 from dataset import CombinedTextDataset,CombinedAudioDataset
-textdataset = CombinedTextDataset(bakertext,ljspeechtext)
-audiodataset = CombinedAudioDataset(bakeraudio,ljspeechaudio)
-
+# textdataset = CombinedTextDataset(bakertext,ljspeechtext)
+# audiodataset = CombinedAudioDataset(bakeraudio,ljspeechaudio)
+textdataset = CombinedTextDataset(ljspeechtext,ljspeechtext)
+audiodataset = CombinedAudioDataset(ljspeechaudio,ljspeechaudio)
 
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
@@ -62,7 +63,7 @@ CTCLoss = nn.CTCLoss()
 #train aligner first 
 melspec_transform = MelSpectrogram(sample_rate=48000,n_fft=1024,hop_length=1024,n_mels=80).to(device)
 
-for epoch in range(2001):
+for epoch in range(201):
     CTCLoss_ = 0
     for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
         optimizer.zero_grad()
