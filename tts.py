@@ -484,7 +484,7 @@ class ContextEncoder(nn.Module):
         self.max_word = config["max_seq_len"] + 1
         self.pho_encoder = Encoder(config["pho_config"],max_word=self.max_word)
         self.style_encoder = Encoder(config["style_config"],max_word=self.max_word)
-        self.language_encoder = AbstractEncoder(2,256)
+        self.language_encoder = AbstractEncoder(2,config["style_config"]["word_dim"])
         self.fc = nn.Sequential(
             nn.Linear(
                 2*config["pho_config"]["word_dim"],
@@ -509,6 +509,7 @@ class ContextEncoder(nn.Module):
         pho_embed = self.pho_encoder(x,x_mask)
         style_embed = self.style_encoder(s,x_mask)
         # print(pho_embed,style_embed)
+        
         mask = (language == 0).unsqueeze(-1).expand(-1,-1,pho_embed.shape[-1])  # Shape: [b, 1], for broadcasting
 
         concat_embed = torch.cat([pho_embed, style_embed], dim=2)  # Shape: [b, t, c+style_dim]
@@ -766,6 +767,45 @@ class StyleSpeech2_FF(nn.Module):
         y = self.mel_linear(x)       
         y = y.permute(0,2,1) #b,c,t
         return y,log_l,y_mask
+    
+
+class StyleSpeech2_Diff(nn.Module):
+    """Feed Forward Structure of StyleSpeech2"""
+    def __init__(self,config,embed_dim=64,output_channel=1):
+        super().__init__()
+        self.max_word = config["max_seq_len"] + 1
+        self.encoder = ContextEncoder(config)
+        self.fuse_decoder = Decoder(config["fuse_config"],max_word=self.max_word)
+        self.output_channel = output_channel
+        if output_channel != 1:
+            self.channel = nn.Sequential(
+                nn.Conv2d(1,output_channel,kernel_size=(3, 1), padding=(1, 0))
+            )
+        self.language_encoder = AbstractEncoder(2,embed_dim)
+        self.mel_linear = nn.Sequential(
+            nn.Linear(
+                config["fuse_config"]["word_dim"],
+                embed_dim
+            ),
+            nn.LeakyReLU(.2)
+        )
+        
+
+    def forward(self, x, s, x_lens,l=None,language=None):
+        #l is duration of phoneme
+        #0 for no mask, 1 for mask
+        batch_size, max_x_len = x.shape[0],x.shape[1]
+        x_mask = get_mask_from_lengths(x_lens,max_len=max_x_len)
+        x = self.encoder(x,s,x_lens,language)
+
+        x,x_mask = self.fuse_decoder(x,x_mask)
+        if self.output_channel != 1:
+            x = x.unsqueeze(1)
+            x = self.channel(x)
+
+        y = self.mel_linear(x)       #b,t,c
+        # y = y.permute(0,2,1) #b,c,t
+        return y,x_mask
 
 class StyleSpeech2_New(nn.Module):
     """Some Information about StyleSpeech2"""

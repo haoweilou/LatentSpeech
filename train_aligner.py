@@ -65,7 +65,7 @@ log.load(f"./log/loss_{model_name}")
 #train aligner first 
 melspec_transform = MelSpectrogram(sample_rate=48000,n_fft=1024,hop_length=1024,n_mels=80).to(device)
 
-for epoch in range(201):
+for epoch in range(2001):
     for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
         optimizer.zero_grad()
         x,s,_,x_lens,_,language = [tensor.to(device) for tensor in text_batch]

@@ -209,7 +209,7 @@ class LJSpeechText(torch.utils.data.Dataset):
         for i in range(start,end):
             sentence = ''.join(re.sub(r'[^a-zA-Z\s]', '', text[i].lower()))
             english.append(sentence.strip())
-
+        self.english = english
         ipa_phonemes, stress = [],[] 
         src_lens = []
         for sentence in english:

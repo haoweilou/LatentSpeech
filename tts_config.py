@@ -1,6 +1,8 @@
+word_dim = 256
+# word_dim = 16
 fft_config = {
     "head_num":2,
-    "hidden_dim":256,
+    "hidden_dim":word_dim,
     "filter_num":1024,
     "kernel_size":9,
     "dropout":0.1
@@ -9,7 +11,7 @@ fft_config = {
 # "word_num":46,#normalize
 pho_config = {
     "word_num":88,
-    "word_dim":256,
+    "word_dim":word_dim,
     "padding_idx":0,
     "n_layers":4,
     "FFT":fft_config
@@ -17,7 +19,7 @@ pho_config = {
 
 style_config = {
     "word_num":5,
-    "word_dim":256,
+    "word_dim":word_dim,
     "padding_idx":0,
     "n_layers":4,   
     "FFT":fft_config
@@ -30,7 +32,7 @@ len_config = {
 }
 
 fuse_config = {
-    "word_dim":256,
+    "word_dim":word_dim,
     "padding_idx":0,
     "n_layers":4,   
     "FFT":fft_config

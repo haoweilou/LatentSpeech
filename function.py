@@ -222,27 +222,27 @@ def collapse_and_duration(phoneme_tensor):
 
     return collapsed_list
 
-def collapse_and_duration(phoneme_tensor):
-    phoneme_array = phoneme_tensor.detach().cpu().numpy()
-    # Initialize variables
-    collapsed_list = []
-    current_phoneme = phoneme_array[0]
-    duration = 1
+# def collapse_and_duration(phoneme_tensor):
+#     phoneme_array = phoneme_tensor.detach().cpu().numpy()
+#     # Initialize variables
+#     collapsed_list = []
+#     current_phoneme = phoneme_array[0]
+#     duration = 1
 
-    # Loop through the tensor elements
-    for phoneme in phoneme_array[1:]:
-        if phoneme == current_phoneme or phoneme == 0:
-            current_phoneme = phoneme
-            duration += 1
-        else:
-            collapsed_list.append(duration)
-            current_phoneme = phoneme
-            duration = 1
+#     # Loop through the tensor elements
+#     for phoneme in phoneme_array[1:]:
+#         if phoneme == current_phoneme or phoneme == 0:
+#             current_phoneme = phoneme
+#             duration += 1
+#         else:
+#             collapsed_list.append(duration)
+#             current_phoneme = phoneme
+#             duration = 1
 
-    # Append the last phoneme and its duration
-    collapsed_list.append(duration)
+#     # Append the last phoneme and its duration
+#     collapsed_list.append(duration)
 
-    return collapsed_list
+#     return collapsed_list
 
 def plot_pqmf_bands(audio, sr, pqmf_model, num_bands):
     # Pass the audio through the PQMF forward process
@@ -315,6 +315,122 @@ def agd_duration(prob_matrix,x_max_len=None):
     if x_max_len is not None: 
         l = F.pad(l,(0, x_max_len - l.shape[-1]),value=0)
     return l
+
+
+def max_path(value, mask, max_neg_val=-np.inf):
+    """ Numpy-friendly version. It's about 4 times faster than torch version.
+    value: [b, t_x, t_y]
+    mask: [b, t_x, t_y]
+    """
+    value = value * mask
+
+    device = value.device
+    dtype = value.dtype
+    value = value.cpu().detach().numpy()
+    mask = mask.cpu().detach().numpy().astype(np.bool)
+    
+    b, t_x, t_y = value.shape
+    direction = np.zeros(value.shape, dtype=np.int64)
+    v = np.zeros((b, t_x), dtype=np.float32)
+    x_range = np.arange(t_x, dtype=np.float32).reshape(1,-1)
+    for j in range(t_y):
+        v0 = np.pad(v, [[0,0],[1,0]], mode="constant", constant_values=max_neg_val)[:, :-1]
+        v1 = v
+        max_mask = (v1 >= v0)
+        v_max = np.where(max_mask, v1, v0)
+        direction[:, :, j] = max_mask
+        
+        index_mask = (x_range <= j)
+        v = np.where(index_mask, v_max + value[:, :, j], max_neg_val)
+    direction = np.where(mask, direction, 1)
+        
+    path = np.zeros(value.shape, dtype=np.float32)
+    index = mask[:, :, 0].sum(1).astype(np.int64) - 1
+    index_range = np.arange(b)
+    for j in reversed(range(t_y)):
+        path[index_range, index, j] = 1
+        index = index + direction[index_range, index, j] - 1
+    path = path * mask.astype(np.float32)
+    path = torch.from_numpy(path).to(device=device, dtype=dtype)
+    return path
+
+def monotonic_alignment(prob_matrix,sequence:list):
+    N,T = prob_matrix.shape#N number of phoneme, T number of frame
+    L = len(sequence)#L is sequence length
+    output = np.zeros((L,T))
+    i,j = 0,0
+
+    for j in range(T):
+        prob = prob_matrix[:,j]
+        curr_p = sequence[i]
+        next_p = sequence[i+1]
+        curr_prob = prob[curr_p]
+        next_prob = prob[next_p]
+        if curr_prob >= next_prob:
+            output[i][j] = 1
+        else:
+            i+=1
+            output[i][j] = 1
+        if i == L-1: 
+            for j_ in range(j,T):
+                output[i][j_] = 1
+            break
+        # print(prob, len(prob))
+       
+        # break
+    l = np.sum(output,axis=1)
+    # while i < L-1:
+    #     curr = sequence[i]
+    #     next = curr+1
+    #     prob_curr = prob_matrix[curr][j]
+    #     prob_next = prob_matrix[next][j]
+    #     if prob_curr >= prob_next:
+    #         output[i][j] = 1
+    #     else: 
+    #         output[i][j] = 1
+    #         i += 1
+    #     j += 1
+        
+        
+
+
+    return l
+
+def mas_duration(prob_matrix,x,x_max_len=None):
+    #b,t_y,t_x
+    prob_matrix = prob_matrix.permute(0,2,1)
+    #t_x, t_y
+    prob_matrix = torch.softmax(prob_matrix,dim=2)
+    prob_matrix_np = prob_matrix.detach().cpu().numpy()
+    # matrix_1 = monotonic_alignment(prob_matrix[0])
+    ls = []
+    for i in range(len(prob_matrix)):
+        l = monotonic_alignment(prob_matrix_np[i],x[i].detach().cpu().numpy())
+        ls.append(l)
+    ls = np.array(ls)
+    ls = torch.tensor(ls).long()
+    print(ls.shape)
+    # print(prob_matrix[0].shape,x[0].shape,l.shape)
+    return ls
+
+
+def greedy_decode(logits,x_max_len=None):
+    # Get the most likely class at each time step
+    # print(logits.shape)
+    predictions = torch.argmax(logits, dim=2)  # Shape: (batch_size, time_steps)
+
+    alignments = []
+    for pred in predictions:
+        alignment = []
+        prev = None
+        for p in pred:
+            if p != prev and p != 0:  # Remove blanks and repeated tokens
+                alignment.append(p.item())
+            prev = p
+        alignments.append(alignment)
+        print(len(alignment))
+    alignments = pad_sequence([F.pad(torch.tensor(a),(0,x_max_len-len(a)),value=0) for a in alignments]).long().T
+    return alignments
 
 
 

@@ -15,6 +15,7 @@ arpabet_to_ipa = {
 }
 # print(len(arpabet_to_ipa.keys()))
 pronouncing_dict = cmudict.dict()
+ipa_to_word = {}
 
 def word_to_phoneme(word):
     word_lower = word.lower()  # CMU Dict uses lowercase words
@@ -40,10 +41,14 @@ def pho_stress_split(phonemes):
             phoneme.append(pho)
     return phoneme,stress
 
+
 def word_to_ipa(word):
+    global ipa_to_word
     phonemes = word_to_phoneme(word)
     phoneme, stress = pho_stress_split(phonemes)
     ipa_phoneme = phoneme_to_ipa(phoneme)
+    if "".join(ipa_phoneme) not in ipa_to_word:
+        ipa_to_word["".join(ipa_phoneme)] = word
     return ipa_phoneme, stress
 
 def normalize_sentence(sentence):
@@ -170,6 +175,8 @@ def pinyin_sentence_to_ipa(pinyin_sentence):
     tones = []
     for pinyin in pinyin_sentence:
         ipa_phoneme, tone = pinyin_to_ipa_phoneme(pinyin)
+        ipa_phoneme.append("sil")
+        tone.append(0)
         ipa_phonemes += ipa_phoneme
         tones += tone
     return ipa_phonemes, tones
