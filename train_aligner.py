@@ -15,7 +15,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 with open("./save/cache/phoneme.json","r") as f: 
     phoneme_set = json.loads(f.read())["phoneme"]
 from ipa import ipa_pho_dict
-print(phoneme_set)
+from logger import Log
 T = 50                  #Input Sequence Length, melspec length
 # C = len(phoneme_set)+1  #Number of Phoneme Class, include blank, 87+1=88
 C = len(ipa_pho_dict)+1   #include empty already
@@ -32,17 +32,17 @@ model_name = "aligner"
 # root = "/home/haoweilou/scratch/"
 root = "L:/"
 loss_log = pd.DataFrame({"total_loss":[],"ctc_loss":[]})
-bakertext = BakerText(normalize=False,start=0,end=500,path=f"{root}baker/",ipa=True)
-bakeraudio = BakerAudio(start=0,end=500,path=f"{root}baker/",return_len=True)
+bakertext = BakerText(normalize=False,start=0,end=2000,path=f"{root}baker/",ipa=True)
+bakeraudio = BakerAudio(start=0,end=2000,path=f"{root}baker/",return_len=True)
 
-ljspeechtext = LJSpeechText(start=0,end=500,path=f"{root}LJSpeech/")
-ljspeechaudio = LJSpeechAudio(start=0,end=500,path=f"{root}LJSpeech/",return_len=True)
+ljspeechtext = LJSpeechText(start=0,end=2000,path=f"{root}LJSpeech/")
+ljspeechaudio = LJSpeechAudio(start=0,end=2000,path=f"{root}LJSpeech/",return_len=True)
 
 from dataset import CombinedTextDataset,CombinedAudioDataset
-# textdataset = CombinedTextDataset(bakertext,ljspeechtext)
-# audiodataset = CombinedAudioDataset(bakeraudio,ljspeechaudio)
-textdataset = CombinedTextDataset(ljspeechtext,ljspeechtext)
-audiodataset = CombinedAudioDataset(ljspeechaudio,ljspeechaudio)
+textdataset = CombinedTextDataset(bakertext,ljspeechtext)
+audiodataset = CombinedAudioDataset(bakeraudio,ljspeechaudio)
+# textdataset = CombinedTextDataset(ljspeechtext,ljspeechtext)
+# audiodataset = CombinedAudioDataset(ljspeechaudio,ljspeechaudio)
 
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
@@ -59,12 +59,13 @@ loader = DataLoader(dataset=list(zip(textdataset, audiodataset)), collate_fn=col
 
 aligner = ASR(input_dim=feature_dim,output_dim=C).to(device)
 optimizer = optim.Adam(aligner.parameters(), betas=(0.9,0.98),eps=1e-9,lr=0.001)
-CTCLoss = nn.CTCLoss()
+CTCLoss = nn.CTCLoss(blank=0)
+log = Log(ctc_loss=0)
+log.load(f"./log/loss_{model_name}")
 #train aligner first 
 melspec_transform = MelSpectrogram(sample_rate=48000,n_fft=1024,hop_length=1024,n_mels=80).to(device)
 
 for epoch in range(201):
-    CTCLoss_ = 0
     for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
         optimizer.zero_grad()
         x,s,_,x_lens,_,language = [tensor.to(device) for tensor in text_batch]
@@ -76,16 +77,15 @@ for epoch in range(201):
         y = melspec           #batch size, phoneme length
         x_f = aligner(y,language)  # [batch_size, seq_len, num_phonemes]            
         x_f = x_f.log_softmax(2).transpose(0, 1) # [seq_len, batch_size, num_phonemes]
-        loss = CTCLoss(x_f, x, y_lens, x_lens)
 
-        CTCLoss_ += loss.item()
+        loss = CTCLoss(x_f, x, y_lens, x_lens)
+        log.update(ctc_loss=loss.item())
         loss.backward()
         optimizer.step()
 
-    print(f"Epoch: {epoch} CTC Loss: {CTCLoss_/len(loader):.03f} Total: {CTCLoss_/len(loader):.03f}")
+    print(log)
         
     if epoch % 100 == 0:
         saveModel(aligner,f"{model_name}_{epoch}","./model/")
 
-    loss_log.loc[len(loss_log.index)] = [CTCLoss_/len(loader),CTCLoss_/len(loader)]
-    loss_log.to_csv(f"./log/loss_{model_name}")
+    log.save(f"./log/loss_{model_name}")

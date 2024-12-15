@@ -30,8 +30,8 @@ loss_log = pd.DataFrame({"total_loss":[],"ctc_loss":[]})
 bakertext = BakerText(normalize=False,start=0,end=500,path=f"{root}baker/",ipa=True)
 bakeraudio = BakerAudio(start=0,end=500,path=f"{root}baker/",return_len=True)
 
-ljspeechtext = LJSpeechText(start=0,end=500,path=f"{root}LJSpeech/")
-ljspeechaudio = LJSpeechAudio(start=0,end=500,path=f"{root}LJSpeech/",return_len=True)
+ljspeechtext = LJSpeechText(start=0,end=1000,path=f"{root}LJSpeech/")
+ljspeechaudio = LJSpeechAudio(start=0,end=1000,path=f"{root}LJSpeech/",return_len=True)
 
 from dataset import CombinedTextDataset,CombinedAudioDataset
 # textdataset = CombinedTextDataset(bakertext,ljspeechtext)
@@ -52,7 +52,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 ae = AE(params).to(device)
 ae = loadModel(ae,"ae20k16_1000","./model")
-def learning_rate(d_model=256,step=1,warmup_steps=400):
+def learning_rate(d_model=256,step=1,warmup_steps=50):
     return (1/math.sqrt(d_model)) * min(1/math.sqrt(step),step*warmup_steps**-1.5)
 
 lr = learning_rate()
@@ -90,8 +90,8 @@ for epoch in range(0,501):
             melspec = melspec.permute(0,2,1)#B,80,T
 
             prob_matrix = aligner(melspec,language)  # [batch_size, y_len, num_phonemes], probability 
-            # l = agd_duration(prob_matrix,x_max_len=x.shape[-1])
-            l = fl_duration(prob_matrix,x,x_max_len=x.shape[-1])
+            l = agd_duration(prob_matrix,x_max_len=x.shape[-1])
+            # l = fl_duration(prob_matrix,x,x_max_len=x.shape[-1])
 
         optimizer.zero_grad()
         #use aligner to predict l 
