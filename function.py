@@ -473,3 +473,24 @@ def fl_duration(prob_matrix,target,x_max_len=None):
     # if x_max_len is not None: 
     #     l = F.pad(l,(0, x_max_len - l.shape[-1]),value=0)
     # return l
+
+from align_fig import get_trellis,backtrack,merge_repeats
+def force_alignment(emission,tokens):
+    trellis = get_trellis(emission, tokens)
+    path = backtrack(trellis, emission, tokens)
+    segments = merge_repeats(path,tokens)
+    duration = [s.end-s.start for s in segments]
+    return duration
+
+def duration_calculate(emissions,tokens,x_lens,y_lens,max_x_len=0):
+    # print(emissions,tokens,x_lens,y_lens)
+    l_outputs = []
+    for emission,token,x_len,y_len in zip(emissions,tokens,x_lens,y_lens):
+        # print(emission.shape,y_len.item())
+        emission = emission[:int(y_len),:]
+        token = token[:int(x_len)]
+        l = force_alignment(emission,token)
+        l_outputs.append(l)
+    outputs = pad_sequence([torch.tensor(i) for i in l_outputs],batch_first=True,padding_value=0)
+    outputs = F.pad(outputs,pad=(0,max_x_len-outputs.shape[-1]),value=0)
+    return outputs

@@ -68,9 +68,9 @@ class BakerAudio(torch.utils.data.Dataset):
             audio_len = torch.tensor([a[1] for a in minibatch])
             minibatch = minibatch_
         output = pad_sequence(minibatch,batch_first=True) #Batch,T
-        if output.shape[-1] >= 48000*10:
-            output = output[:,:48000*10]
-            audio_len = torch.tensor([48000*10 for _ in minibatch])
+        # if output.shape[-1] >= 48000*10:
+        #     output = output[:,:48000*10]
+        #     audio_len = torch.tensor([48000*10 for _ in minibatch])
         if self.return_len: 
             return output.unsqueeze(1), audio_len
         else:
@@ -205,31 +205,56 @@ class LJSpeechText(torch.utils.data.Dataset):
         for line in lines: 
             text.append(line.split("|")[-1])
         # text = pd.read_csv(f"{path}metadata.csv",sep="|",header=None)
-        english = []
+        english_sentence = []
         for i in range(start,end):
             sentence = ''.join(re.sub(r'[^a-zA-Z\s]', '', text[i].lower()))
-            english.append(sentence.strip())
-        self.english = english
-        ipa_phonemes, stress = [],[] 
+            english_sentence.append(sentence.strip())
+
+
+        self.english_sentence = english_sentence
+
+        ipa_sentences, stress = [],[] 
         src_lens = []
-        for sentence in english:
-            ip,t = english_sentence_to_ipa(sentence)
-            ipa_phonemes.append(ip)
+        for sentence in english_sentence:
+            ip_semtemce,t = english_sentence_to_ipa(sentence)
+            ipa_sentences.append(ip_semtemce)
             stress.append(t)
-            src_lens.append(len(ip))
+            src_lens.append(len(ip_semtemce))
+        self.ipa_sentences = ipa_sentences
         self.src_len = torch.tensor(src_lens)
         self.max_len = max(self.src_len)
 
-        ipd_idx = [[ipa_pho_dict[i] for i in row] for row in ipa_phonemes]
+        ipd_idx = [[ipa_pho_dict[i] for i in ip_semtemce] for ip_semtemce in ipa_sentences]
         self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
         # self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in stress],batch_first=True,padding_value=0)
         self.s = torch.zeros_like(self.x)
-        self.l = torch.ones_like(self.x)
+        self.l = torch.zeros_like(self.x)
+        # None
         self.mel_len = torch.ones_like(self.src_len)
+        self.language = torch.ones_like(self.src_len)
 
-    
+    def calculate_l(self,aligner,ys,y_lens):
+        from torchaudio.transforms import MelSpectrogram
+        from function import duration_calculate
+        melspec_transform = MelSpectrogram(sample_rate=48000,n_fft=1024,hop_length=1024,n_mels=80).to(device)
+        output = []
+        print("Start Loading and Calculate Duration: ")
+        for i,y in enumerate(tqdm(ys)): 
+            y = torch.unsqueeze(y,0).to(device)
+            melspec = melspec_transform(y).squeeze(1) #B,T,80
+            melspec = melspec.permute(0,2,1)#B,80,T
+            prob_matrix = aligner(melspec)  # [batch_size, y_len, num_phonemes], probability 
+            emission = torch.log_softmax(prob_matrix,dim=-1) # [seq_len, batch_size, num_phonemes]
+            # print(emission.shape,self.x[i].cpu().unsqueeze(0).shape)
+            l = duration_calculate(emission.cpu(),self.x[i].cpu().unsqueeze(0),[self.src_len[i]],[y_lens[i]], max_x_len = self.src_len[i])
+            output.append(l[0])
+        output = pad_sequence([torch.tensor(i) for i in output],batch_first=True,padding_value=0)
+        output = F.pad(output,pad=(0,max(self.src_len)-output.shape[-1]),value=0)
+        self.l = output
+        print(self.l,output.shape)
+
     def __getitem__(self, index):
-        return self.x[index], self.s[index], self.l[index], self.src_len[index], self.mel_len[index]
+        return self.x[index], self.s[index], self.l[index], self.src_len[index], self.mel_len[index], self.language[index]
 
     def __len__(self):
         return len(self.x)
@@ -240,7 +265,7 @@ class CombinedTextDataset(torch.utils.data.Dataset):
         assert len(text_dataset1) == len(text_dataset2)
         self.x = pad_sequence(list(text_dataset1.x)+list(text_dataset2.x),batch_first=True)
         self.s = pad_sequence(list(text_dataset1.s)+list(text_dataset2.s),batch_first=True)
-        self.l = torch.ones_like(self.x)
+        self.l = pad_sequence(list(text_dataset1.l)+list(text_dataset2.l),batch_first=True)
         self.src_len = torch.concat([text_dataset1.src_len,text_dataset2.src_len],dim=0)
         self.mel_len = torch.ones_like(self.src_len)
         self.language = torch.cat([torch.zeros((len(text_dataset1),self.x.shape[-1])),torch.ones((len(text_dataset2),self.x.shape[-1]))],dim=0).long()

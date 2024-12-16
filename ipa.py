@@ -1,6 +1,7 @@
 import nltk
 from nltk.corpus import cmudict
 # Example usage
+import re
 nltk.download("cmudict")
 arpabet_to_ipa = {
     'AA': 'ɑ', 'AE': 'æ', 'AH': 'ʌ', 'AO': 'ɔ', 'AW': 'aʊ', 
@@ -11,7 +12,6 @@ arpabet_to_ipa = {
     'OY': 'ɔɪ', 'P': 'p', 'R': 'ɹ', 'S': 's', 'SH': 'ʃ',
     'T': 't', 'TH': 'θ', 'UH': 'ʊ', 'UW': 'u', 'V': 'v',
     'W': 'w', 'Y': 'j', 'Z': 'z', 'ZH': 'ʒ'
-    , "SILIENT":"sil"
 }
 # print(len(arpabet_to_ipa.keys()))
 pronouncing_dict = cmudict.dict()
@@ -56,10 +56,11 @@ def normalize_sentence(sentence):
     output = []
     for word in words: 
         if word in pronouncing_dict:
-            output.append(word)
+            output.append([word])
         else: 
-            output += split_into_words(word,pronouncing_dict)
-    return " ".join(output)
+            output.append(split_into_words(word,pronouncing_dict))
+    # output = " ".join(output)
+    return output
     
 
 
@@ -83,21 +84,30 @@ def split_into_words(word, word_dictionary):
 
 
 def english_sentence_to_ipa(sentence):
+    # print(sentence)
     sentence = normalize_sentence(sentence)
+    #[['the'], ['shameful'], ['malpractice', 's'], ['of'], ['bam', 'bridge']]
     #english
-    ipa_phonemes = []
-    stresses = []
-    
-    for word in sentence.split(" "):
-        ipa_phoneme, stress = word_to_ipa(word)
-        ipa_phoneme.append("sil")
-        stress.append(0)
-        ipa_phonemes += ipa_phoneme
+    ipa_phonemes = ["|"]
+    stresses = [0]
+    for word in sentence:
+        # print(word)
+        # ipa_phoneme = []
+        stress = []
+        word_phoneme = []
+        for subword in word:
+            ipa, s = word_to_ipa(subword)
+            word_phoneme+=ipa
+            stress+=s
+
+        ipa_phonemes += word_phoneme
+        ipa_phonemes.append("|")
+        # stress.append(0)
+
+        # ipa_phonemes += ipa_phoneme
         stresses += stress
+    # ipa_phonemes = [i for i in "".join(ipa_phonemes)]
     return ipa_phonemes, stresses
-        
-    
-# print(english_sentence_to_ipa("woodcutters"))
 
 #phoneme, number of ipa phoneme
 #stress, 3, 0: no stress, 1 for primary stress, 2 for non-stress, mostly applied to vowel
@@ -120,10 +130,9 @@ pinyin_to_ipa = {
     "ua": "wa", "uo": "wo", "uai": "waɪ", "ui": "weɪ",
     "uan": "wan", "un": "wən", "uang": "wɑŋ", "ue": "yɛ", "van": "yan", "vn": "yn",
     "ve":"yɛ"
-    ,"SILIENT":"sil"
 }
 
-from pypinyin import pinyin, lazy_pinyin, Style
+from pypinyin import pinyin, Style
 def hanzi_to_pinyin(hanzi):
     return [syllable[0] for syllable in pinyin(hanzi, style=Style.TONE3)]
                                                
@@ -140,6 +149,7 @@ finals = [
     "ve", "van", "vn",
     "er"
 ]
+
 def pinyin_to_phoneme(syllable):
     initial = None
     if syllable[:2] in initials: 
@@ -175,7 +185,7 @@ def pinyin_sentence_to_ipa(pinyin_sentence):
     tones = []
     for pinyin in pinyin_sentence:
         ipa_phoneme, tone = pinyin_to_ipa_phoneme(pinyin)
-        ipa_phoneme.append("sil")
+        ipa_phoneme.append("|")
         tone.append(0)
         ipa_phonemes += ipa_phoneme
         tones += tone
@@ -190,16 +200,6 @@ def ipa_to_idx(ipa_phonemes):
 
 all_ipa_phoneme = list(pinyin_to_ipa.values())+list(arpabet_to_ipa.values())
 all_ipa_phoneme = sorted(list(set(all_ipa_phoneme)))
-all_ipa_phoneme = ["EMPTY"] + all_ipa_phoneme
-print(all_ipa_phoneme)
+all_ipa_phoneme = ["EMPTY"] + all_ipa_phoneme+["|"]
 ipa_pho_dict = {k:i for i,k  in enumerate(all_ipa_phoneme)}
-
-# print(len(ipa_pho_dict))
-
-# ipa_pho, tone = mandarin_chinese_to_ipa("嗯八卦新闻总是很多")
-# print(ipa_pho,tone)
-# ipd_idx = [ipa_pho_dict[i] for i in ipa_pho]
-# tone = tone 
-
-
-    
+print(ipa_pho_dict)

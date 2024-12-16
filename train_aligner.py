@@ -28,19 +28,19 @@ feature_dim = 16 if feature_type != "Melspec" else 80        #feature dim
 lr = learning_rate()
 print("Initial learnign rate: ",lr)
 print("Load Dataset: ")
-model_name = "aligner"
+model_name = "aligner_en"
 # root = "/home/haoweilou/scratch/"
 root = "L:/"
 loss_log = pd.DataFrame({"total_loss":[],"ctc_loss":[]})
-bakertext = BakerText(normalize=False,start=0,end=2000,path=f"{root}baker/",ipa=True)
-bakeraudio = BakerAudio(start=0,end=2000,path=f"{root}baker/",return_len=True)
+bakertext = BakerText(normalize=False,start=0,end=200,path=f"{root}baker/",ipa=True)
+bakeraudio = BakerAudio(start=0,end=200,path=f"{root}baker/",return_len=True)
 
-ljspeechtext = LJSpeechText(start=0,end=2000,path=f"{root}LJSpeech/")
-ljspeechaudio = LJSpeechAudio(start=0,end=2000,path=f"{root}LJSpeech/",return_len=True)
+ljspeechtext = LJSpeechText(start=0,end=4000,path=f"{root}LJSpeech/")
+ljspeechaudio = LJSpeechAudio(start=0,end=4000,path=f"{root}LJSpeech/",return_len=True)
 
 from dataset import CombinedTextDataset,CombinedAudioDataset
-textdataset = CombinedTextDataset(bakertext,ljspeechtext)
-audiodataset = CombinedAudioDataset(bakeraudio,ljspeechaudio)
+# textdataset = CombinedTextDataset(bakertext,ljspeechtext)
+# audiodataset = CombinedAudioDataset(bakeraudio,ljspeechaudio)
 # textdataset = CombinedTextDataset(ljspeechtext,ljspeechtext)
 # audiodataset = CombinedAudioDataset(ljspeechaudio,ljspeechaudio)
 
@@ -55,7 +55,9 @@ def collate_fn(batch):
 #4k32 wo language, epoch 13 good (below 1)
 #8k32 wo language, epoch 6 good (below 1)
 #8k32 wo language, epoch 6 good (below 1)
-loader = DataLoader(dataset=list(zip(textdataset, audiodataset)), collate_fn=collate_fn, batch_size=32, shuffle=True)
+loader = DataLoader(dataset=list(zip(ljspeechtext, ljspeechaudio)), collate_fn=collate_fn, batch_size=32, shuffle=True)
+
+# loader = DataLoader(dataset=list(zip(textdataset, audiodataset)), collate_fn=collate_fn, batch_size=32, shuffle=True)
 
 aligner = ASR(input_dim=feature_dim,output_dim=C).to(device)
 optimizer = optim.Adam(aligner.parameters(), betas=(0.9,0.98),eps=1e-9,lr=0.001)
