@@ -12,9 +12,15 @@ from dataset import LJSpeechText,LJSpeechAudio
 from torch.utils.data import DataLoader
 from params import params
 from tts import StyleSpeech2,StyleSpeech2_FF
+from model import ASR
 
-bakertext = LJSpeechText(start=200,end=201,path="L:/LJSpeech/")
-bakeraudio = LJSpeechAudio(start=200,end=201,path="L:/LJSpeech/",return_len=True)
+bakertext = LJSpeechText(start=100,end=101,path="L:/LJSpeech/")
+bakeraudio = LJSpeechAudio(start=100,end=101,path="L:/LJSpeech/",return_len=True)
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+from ipa import ipa_pho_dict
+aligner = ASR(80,len(ipa_pho_dict)+1).to(device)
+aligner = loadModel(aligner,"aligner_en_600","./model/")
+bakertext.calculate_l(aligner,ys=bakeraudio.audios,y_lens=bakeraudio.audio_lens)
 
 
 # bakertext = BakerText(normalize=False,start=0,end=100)
@@ -44,14 +50,14 @@ from ipa import ipa_pho_dict
 config["pho_config"]["word_num"] = len(ipa_pho_dict)
 modelname = "StyleSpeech2_FF"
 model = StyleSpeech2_FF(config,embed_dim=16).to(device)
-model = loadModel(model,f"{modelname}_250","./model/")
+model = loadModel(model,f"{modelname}_200","./model/")
 
 import torchaudio.transforms as T
 
 
 
 for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
-    x,s,_,x_lens,_ = [tensor.to(device) for tensor in text_batch]
+    x,s,l,x_lens,_,_ = [tensor.to(device) for tensor in text_batch]
     audio,y_lens = audio_batch[0].to(device),audio_batch[1].to(device)
     with torch.no_grad():
         y,_ = ae.encode(audio)
@@ -62,7 +68,7 @@ for i,(text_batch,audio_batch) in enumerate(tqdm(loader)):
     length_scale = 1.0
     # (y_gen, *_), *_, (attn_gen, *_) = model(x, s, x_lens,y_lens=y_lens, gen=True, noise_scale=noise_scale, length_scale=length_scale,g=speaker)
     language = torch.ones_like(x).to(dtype=torch.long,device=x.device)
-    y_gen,log_l,y_mask = model(x, s, x_lens,y_lens=y_lens,max_y_len=y.shape[-1],language=language)
+    y_gen,log_l,y_mask = model(x, s, x_lens,l=l,y_lens=y_lens,max_y_len=y.shape[-1],language=language)
     print(y_gen.shape)
     draw_heatmap(y_gen[0].detach().cpu().numpy(),name="ss2_heat")
     draw_heatmap(y[0].detach().cpu().numpy(),name="real_heat")
