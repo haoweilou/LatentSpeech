@@ -59,14 +59,14 @@ loader = DataLoader(dataset=list(zip(textdataset, audiodataset)), collate_fn=col
 
 ae = AE(params).to(device)
 ae = loadModel(ae,"ae20k16_1000","./model")
-def learning_rate(d_model=256,step=1,warmup_steps=50):
+
+def learning_rate(d_model=256,step=1,warmup_steps=4000):
     return (1/math.sqrt(d_model)) * min(1/math.sqrt(step),step*warmup_steps**-1.5)
 
 lr = learning_rate()
 print(f"Initial LR: {lr}")
 model = StyleSpeech2_FF(config,embed_dim=16).to(device)
-# optimizer = optim.Adam(model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=lr)
-optimizer = optim.Adam(model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=0.001)
+optimizer = optim.Adam(model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=lr)
 
 modelname = "StyleSpeech2_FF"
 loss_log = pd.DataFrame({"total_loss":[],"tts_loss":[],"duration_loss":[]})
@@ -81,7 +81,7 @@ fastloss = FastSpeechLoss().to(device)
 melspec_transform = MelSpectrogram(sample_rate=48000,n_fft=1024,hop_length=1024,n_mels=80).to(device)
 
 
-step = 0
+step = 1
 for epoch in range(0,501):
     total_loss = 0
     fastLoss_ = 0
@@ -90,6 +90,10 @@ for epoch in range(0,501):
         x,s,l,x_lens,_,language = [tensor.to(device) for tensor in text_batch]
         # print(language)
         audio,y_lens = audio_batch[0].to(device),audio_batch[1].to(device)
+        
+        new_lr = learning_rate(step=step)
+        for param_group in optimizer.param_groups: param_group['lr'] = new_lr
+
         with torch.no_grad():
             y,_ = ae.encode(audio) 
             y_lens = torch.ceil(y_lens/16/64)
@@ -115,6 +119,7 @@ for epoch in range(0,501):
         fastLoss_ += tts_loss.item()
         duration_loss_ += duration_loss.item()
         total_loss += loss.item()
+        step += 1
         
 
     print(f"Epoch: {epoch} Duration Loss: {duration_loss_/len(loader):.03f} TTS Loss: {fastLoss_/len(loader):.03f} Total: {total_loss/len(loader):.03f}")
@@ -123,8 +128,3 @@ for epoch in range(0,501):
         saveModel(model,f"{modelname}_{epoch}","./model/")
     loss_log.loc[len(loss_log.index)] = [total_loss/len(loader),fastLoss_/len(loader),duration_loss_/len(loader)]
     loss_log.to_csv(loss_log_name)
-
-    # if epoch > 0:
-    #     new_lr = learning_rate(step=epoch)
-    #     for param_group in optimizer.param_groups:
-    #         param_group['lr'] = new_lr
