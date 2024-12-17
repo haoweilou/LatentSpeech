@@ -181,8 +181,8 @@ def pinyin_to_ipa_phoneme(syllable):
     return ipa_phoneme, tones
 
 def pinyin_sentence_to_ipa(pinyin_sentence):
-    ipa_phonemes = []
-    tones = []
+    ipa_phonemes = ["|"]
+    tones = [0]
     for pinyin in pinyin_sentence:
         ipa_phoneme, tone = pinyin_to_ipa_phoneme(pinyin)
         ipa_phoneme.append("|")
