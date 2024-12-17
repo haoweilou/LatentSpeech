@@ -30,8 +30,8 @@ print("Initial learnign rate: ",lr)
 print("Load Dataset: ")
 model_name = "aligner"
 # root = "/home/haoweilou/scratch/"
-# root = "L:/"
-root = "/scratch/ey69/hl6114/"
+root = "L:/"
+# root = "/scratch/ey69/hl6114/"
 loss_log = pd.DataFrame({"total_loss":[],"ctc_loss":[]})
 bakertext = BakerText(normalize=False,start=0,end=5000,path=f"{root}baker/",ipa=True)
 bakeraudio = BakerAudio(start=0,end=5000,path=f"{root}baker/",return_len=True)
@@ -62,9 +62,9 @@ loader = DataLoader(dataset=list(zip(textdataset, audiodataset)), collate_fn=col
 
 aligner = ASR(input_dim=feature_dim,output_dim=C).to(device)
 optimizer = optim.Adam(aligner.parameters(), betas=(0.9,0.98),eps=1e-9,lr=0.001)
-CTCLoss = nn.CTCLoss(blank=0)
+CTCLoss = nn.CTCLoss(blank=0,zero_infinity=True)
 log = Log(ctc_loss=0)
-log.load(f"./log/loss_{model_name}")
+# log.load(f"./log/loss_{model_name}")
 #train aligner first 
 melspec_transform = MelSpectrogram(sample_rate=48000,n_fft=1024,hop_length=1024,n_mels=80).to(device)
 
@@ -77,15 +77,19 @@ for epoch in range(2001):
             melspec = melspec_transform(audio).squeeze(1) #B,T,80
             melspec = melspec.permute(0,2,1)#B,80,T
             y_lens = torch.ceil(y_lens/16/64).long()
-        y = melspec           #batch size, phoneme length
-        x_f = aligner(y,language)  # [batch_size, seq_len, num_phonemes]            
+            y = melspec           #batch size, phoneme length
+        x_f = aligner(y,language)  # [batch_size, seq_len, num_phonemes]   
+        # print(x)         
+        # print(x_f[0])
         x_f = x_f.log_softmax(2).transpose(0, 1) # [seq_len, batch_size, num_phonemes]
+        # print(melspec[0],y_lens[0],x_f[0],x_f.shape)
+        # break
 
         loss = CTCLoss(x_f, x, y_lens, x_lens)
-        log.update(ctc_loss=loss.item())
         loss.backward()
         optimizer.step()
-
+        log.update(ctc_loss=loss.item())
+    # break
     print(log)
         
     if epoch % 100 == 0:

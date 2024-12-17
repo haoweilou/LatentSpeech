@@ -3,8 +3,8 @@ from nltk.corpus import cmudict
 # Example usage
 import re
 import os 
-nltk_data_dir = os.path.abspath("./")
-nltk.data.path.append(nltk_data_dir)
+# nltk_data_dir = os.path.abspath("./")
+# nltk.data.path.append(nltk_data_dir)
 
 arpabet_to_ipa = {
     'AA': 'ɑ', 'AE': 'æ', 'AH': 'ʌ', 'AO': 'ɔ', 'AW': 'aʊ', 

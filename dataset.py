@@ -157,12 +157,15 @@ class BakerText(torch.utils.data.Dataset):
 
             ipa_phonemes, tones = [],[] 
             src_lens = []
+
+            self.hanzi = hanzis
+            
             for hanzi in hanzis:
                 ip,t = mandarin_chinese_to_ipa(hanzi)
                 ipa_phonemes.append(ip)
                 tones.append(t)
                 src_lens.append(len(ip))
-                
+            self.ipa_sentences = ipa_phonemes
             self.src_len = torch.tensor(src_lens)
             self.max_len = max(self.src_len)
 
@@ -171,6 +174,8 @@ class BakerText(torch.utils.data.Dataset):
             self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in tones],batch_first=True,padding_value=0)
             self.l = torch.ones_like(self.x)
             self.mel_len = torch.ones_like(self.src_len)
+        self.language = torch.ones_like(self.src_len)
+
 
 
 
@@ -186,7 +191,7 @@ class BakerText(torch.utils.data.Dataset):
         return output
     
     def __getitem__(self, index):
-        return self.x[index], self.s[index], self.l[index], self.src_len[index], self.mel_len[index]
+        return self.x[index], self.s[index], self.l[index], self.src_len[index], self.mel_len[index], self.language[index]
 
     def __len__(self):
         return len(self.x)

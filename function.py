@@ -494,3 +494,21 @@ def duration_calculate(emissions,tokens,x_lens,y_lens,max_x_len=0):
     outputs = pad_sequence([torch.tensor(i) for i in l_outputs],batch_first=True,padding_value=0)
     outputs = F.pad(outputs,pad=(0,max_x_len-outputs.shape[-1]),value=0)
     return outputs
+
+def calculate_l(aligner,ys,y_lens,x,x_len):
+    from torchaudio.transforms import MelSpectrogram
+    from tqdm import tqdm
+    device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+    melspec_transform = MelSpectrogram(sample_rate=48000,n_fft=1024,hop_length=1024,n_mels=80).to(device)
+    output = []
+    print("Start Loading and Calculate Duration: ")
+    for i,y in enumerate(tqdm(ys)): 
+        y = torch.unsqueeze(y,0).to(device)
+        melspec = melspec_transform(y).squeeze(1) #B,T,80
+        melspec = melspec.permute(0,2,1)#B,80,T
+        prob_matrix = aligner(melspec)  # [batch_size, y_len, num_phonemes], probability 
+        emission = torch.log_softmax(prob_matrix,dim=-1) # [seq_len, batch_size, num_phonemes]
+        # print(emission.shape,self.x[i].cpu().unsqueeze(0).shape)
+        l = duration_calculate(emission.cpu(),x[i].cpu().unsqueeze(0),[x_len[i]],[y_lens[i]], max_x_len = x_len[i])
+        output.append(l[0].tolist())
+    return output
