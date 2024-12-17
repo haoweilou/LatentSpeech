@@ -28,7 +28,7 @@ feature_dim = 16 if feature_type != "Melspec" else 80        #feature dim
 lr = learning_rate()
 print("Initial learnign rate: ",lr)
 print("Load Dataset: ")
-model_name = "aligner_en"
+model_name = "aligner"
 # root = "/home/haoweilou/scratch/"
 # root = "L:/"
 root = "/scratch/ey69/hl6114/"

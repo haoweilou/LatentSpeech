@@ -2,9 +2,9 @@ import nltk
 from nltk.corpus import cmudict
 # Example usage
 import re
-nltk.download("cmudict",download_dir="./")
-nltk.data.path.append("./")
-
+import os 
+nltk_data_dir = os.path.abspath("./")
+nltk.data.path.append(nltk_data_dir)
 
 arpabet_to_ipa = {
     'AA': 'ɑ', 'AE': 'æ', 'AH': 'ʌ', 'AO': 'ɔ', 'AW': 'aʊ', 
@@ -17,7 +17,13 @@ arpabet_to_ipa = {
     'W': 'w', 'Y': 'j', 'Z': 'z', 'ZH': 'ʒ'
 }
 # print(len(arpabet_to_ipa.keys()))
-pronouncing_dict = cmudict.dict()
+try:
+    pronouncing_dict = cmudict.dict()
+    print("CMU Pronouncing Dictionary loaded successfully!")
+except LookupError:
+    print("CMU Pronouncing Dictionary not found in the specified path.")
+    print("Ensure the directory structure is correct: nltk_data/corpora/cmudict/")
+    
 ipa_to_word = {}
 
 def word_to_phoneme(word):
