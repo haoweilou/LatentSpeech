@@ -36,8 +36,9 @@ def collate_fn(batch):
     return text_batch, audio_batch
 
 
-chinese = True
-number = 1000
+chinese = False
+import random
+number = random.randint(0,9900)
 if chinese:
     bakertext = BakerText(start=number,end=number+10,path=f"{root}baker/",ipa=True)
     bakeraudio = BakerAudio(start=number,end=number+10,path=f"{root}baker/",return_len=True)
@@ -139,7 +140,7 @@ for i,(text_batch,audio_batch) in enumerate(loader):
         if chinese:
             word = sentece_englisht[i]
         else:
-            word = sentece_englisht.split(" ")[i]
+            word = sentece_englisht.split()[i]
         save_audio(segment.cpu(), sample_rate=48000,name=f"{i}_{word}",root="./sample/split/")
 
     for i in range(len(word_segments)):
