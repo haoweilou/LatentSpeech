@@ -36,7 +36,7 @@ def collate_fn(batch):
     return text_batch, audio_batch
 
 
-chinese = True
+chinese = False
 import random
 number = random.randint(0,9900)
 if chinese:

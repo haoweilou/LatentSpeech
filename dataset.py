@@ -13,6 +13,7 @@ from tts_config import config
 import os
 from tqdm import tqdm
 import random
+import json
 import pandas as pd
 from function import loadModel, load_audio
 from torch.nn.utils.rnn import pad_sequence
@@ -144,7 +145,9 @@ class BakerText(torch.utils.data.Dataset):
             self.x = pad_sequence(self.pho2idx(x_raw,self.pho_dict,normalize=normalize),batch_first=True,padding_value=0)
             self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in s_raw],batch_first=True,padding_value=0)
             # self.l = pad_sequence([torch.tensor(self.phonemes[k]["mel_len"]) for k in self.keys],batch_first=True,padding_value=0)
-            self.l = pad_sequence([torch.ceil(torch.tensor(self.phonemes[k]["pho_len"])/4800/0.02) for k in self.keys],batch_first=True,padding_value=0)
+           
+
+            # self.l = pad_sequence([torch.ceil(torch.tensor(self.phonemes[k]["pho_len"])/4800/0.02) for k in self.keys],batch_first=True,padding_value=0)
         else: 
             from ipa import ipa_pho_dict
             self.pho_dict = ipa_pho_dict
@@ -172,12 +175,18 @@ class BakerText(torch.utils.data.Dataset):
             ipd_idx = [[ipa_pho_dict[i] for i in row] for row in ipa_phonemes]
             self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
             self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in tones],batch_first=True,padding_value=0)
-            self.l = torch.ones_like(self.x)
+
+            with open("./save/duration/baker.json","r") as f: 
+                data_str = f.read()
+                data = json.load(data_str)
+                l = []
+                for i in range(start,end):
+                    duration = data[str(i)]
+                    l.append(duration)
+                    
+            self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)
             self.mel_len = torch.ones_like(self.src_len)
         self.language = torch.ones_like(self.src_len)
-
-
-
 
 
     def pho2idx(self,phonemes,pho_list:list,normalize=True):
@@ -233,30 +242,40 @@ class LJSpeechText(torch.utils.data.Dataset):
         self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
         # self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in stress],batch_first=True,padding_value=0)
         self.s = torch.zeros_like(self.x)
-        self.l = torch.zeros_like(self.x)
+        with open("./save/duration/LJSpeech.json","r") as f: 
+                data_str = f.read()
+                data = json.loads(data_str)
+                l = []
+                for i in range(start,end):
+                    duration = data[str(i)]
+                    l.append(duration)
+                    
+        self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)
         # None
         self.mel_len = torch.ones_like(self.src_len)
         self.language = torch.ones_like(self.src_len)
 
-    def calculate_l(self,aligner,ys,y_lens):
-        from torchaudio.transforms import MelSpectrogram
-        from function import duration_calculate
-        melspec_transform = MelSpectrogram(sample_rate=48000,n_fft=1024,hop_length=1024,n_mels=80).to(device)
-        output = []
-        print("Start Loading and Calculate Duration: ")
-        for i,y in enumerate(tqdm(ys)): 
-            y = torch.unsqueeze(y,0).to(device)
-            melspec = melspec_transform(y).squeeze(1) #B,T,80
-            melspec = melspec.permute(0,2,1)#B,80,T
-            prob_matrix = aligner(melspec)  # [batch_size, y_len, num_phonemes], probability 
-            emission = torch.log_softmax(prob_matrix,dim=-1) # [seq_len, batch_size, num_phonemes]
-            # print(emission.shape,self.x[i].cpu().unsqueeze(0).shape)
-            l = duration_calculate(emission.cpu(),self.x[i].cpu().unsqueeze(0),[self.src_len[i]],[y_lens[i]], max_x_len = self.src_len[i])
-            output.append(l[0])
-        output = pad_sequence([torch.tensor(i) for i in output],batch_first=True,padding_value=0)
-        output = F.pad(output,pad=(0,max(self.src_len)-output.shape[-1]),value=0)
-        self.l = output
-        print(self.l,output.shape)
+        
+
+    # def calculate_l(self,aligner,ys,y_lens):
+    #     from torchaudio.transforms import MelSpectrogram
+    #     from function import duration_calculate
+    #     melspec_transform = MelSpectrogram(sample_rate=48000,n_fft=1024,hop_length=1024,n_mels=80).to(device)
+    #     output = []
+    #     print("Start Loading and Calculate Duration: ")
+    #     for i,y in enumerate(tqdm(ys)): 
+    #         y = torch.unsqueeze(y,0).to(device)
+    #         melspec = melspec_transform(y).squeeze(1) #B,T,80
+    #         melspec = melspec.permute(0,2,1)#B,80,T
+    #         prob_matrix = aligner(melspec)  # [batch_size, y_len, num_phonemes], probability 
+    #         emission = torch.log_softmax(prob_matrix,dim=-1) # [seq_len, batch_size, num_phonemes]
+    #         # print(emission.shape,self.x[i].cpu().unsqueeze(0).shape)
+    #         l = duration_calculate(emission.cpu(),self.x[i].cpu().unsqueeze(0),[self.src_len[i]],[y_lens[i]], max_x_len = self.src_len[i])
+    #         output.append(l[0])
+    #     output = pad_sequence([torch.tensor(i) for i in output],batch_first=True,padding_value=0)
+    #     output = F.pad(output,pad=(0,max(self.src_len)-output.shape[-1]),value=0)
+    #     self.l = output
+    #     print(self.l,output.shape)
 
     def __getitem__(self, index):
         return self.x[index], self.s[index], self.l[index], self.src_len[index], self.mel_len[index], self.language[index]

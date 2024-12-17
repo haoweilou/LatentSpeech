@@ -27,7 +27,7 @@ if is_ipa: config["pho_config"]["word_num"] = len(ipa_pho_dict)
 root = "/home/haoweilou/scratch/"
 # root = "L:/"
 loss_log = pd.DataFrame({"total_loss":[],"ctc_loss":[]})
-bakertext = BakerText(normalize=False,start=0,end=500,path=f"{root}baker/",ipa=True)
+# bakertext = BakerText(normalize=False,start=0,end=500,path=f"{root}baker/",ipa=True)
 bakeraudio = BakerAudio(start=0,end=500,path=f"{root}baker/",return_len=True)
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -35,9 +35,9 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 aligner = ASR(80,len(ipa_pho_dict)+1).to(device)
 aligner = loadModel(aligner,"aligner_en_600","./model/")
 
-ljspeechaudio = LJSpeechAudio(start=0,end=4000,path=f"{root}LJSpeech/",return_len=True)
-ljspeechtext = LJSpeechText(start=0,end=4000,path=f"{root}LJSpeech/")
-ljspeechtext.calculate_l(aligner,ys=ljspeechaudio.audios,y_lens=ljspeechaudio.audio_lens)
+ljspeechaudio = LJSpeechAudio(start=0,end=2000,path=f"{root}LJSpeech/",return_len=True)
+ljspeechtext = LJSpeechText(start=0,end=2000,path=f"{root}LJSpeech/")
+# ljspeechtext.calculate_l(aligner,ys=ljspeechaudio.audios,y_lens=ljspeechaudio.audio_lens)
 
 
 
@@ -55,7 +55,7 @@ def collate_fn(batch):
     return text_batch, audio_batch
 
 # loader = DataLoader(dataset=list(zip(bakertext, bakeraudio)), collate_fn=collate_fn, batch_size=16, shuffle=True)
-loader = DataLoader(dataset=list(zip(textdataset, audiodataset)), collate_fn=collate_fn, batch_size=16, shuffle=True)
+loader = DataLoader(dataset=list(zip(textdataset, audiodataset)), collate_fn=collate_fn, batch_size=32, shuffle=True)
 
 ae = AE(params).to(device)
 ae = loadModel(ae,"ae20k16_1000","./model")
@@ -90,9 +90,6 @@ for epoch in range(0,501):
         x,s,l,x_lens,_,language = [tensor.to(device) for tensor in text_batch]
         # print(language)
         audio,y_lens = audio_batch[0].to(device),audio_batch[1].to(device)
-        
-        new_lr = learning_rate(step=step)
-        for param_group in optimizer.param_groups: param_group['lr'] = new_lr
 
         with torch.no_grad():
             y,_ = ae.encode(audio) 
@@ -119,12 +116,15 @@ for epoch in range(0,501):
         fastLoss_ += tts_loss.item()
         duration_loss_ += duration_loss.item()
         total_loss += loss.item()
+
         step += 1
-        
+
+        new_lr = learning_rate(step=step)
+        for param_group in optimizer.param_groups: param_group['lr'] = new_lr
 
     print(f"Epoch: {epoch} Duration Loss: {duration_loss_/len(loader):.03f} TTS Loss: {fastLoss_/len(loader):.03f} Total: {total_loss/len(loader):.03f}")
-
-    if epoch % 50 == 0:
+    if epoch % 50 == 0: 
         saveModel(model,f"{modelname}_{epoch}","./model/")
+    
     loss_log.loc[len(loss_log.index)] = [total_loss/len(loader),fastLoss_/len(loader),duration_loss_/len(loader)]
     loss_log.to_csv(loss_log_name)
