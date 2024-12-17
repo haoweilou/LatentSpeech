@@ -25,8 +25,8 @@ feature_dim = 16 if feature_type != "Melspec" else 80        #feature dim
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 aligner = ASR(input_dim=feature_dim,output_dim=C).to(device)
-epoch = 600
-aligner = loadModel(aligner,f"aligner_en_{epoch}","./model/")
+epoch = 100
+aligner = loadModel(aligner,f"aligner_{epoch}","./model/")
 bakeraudio = BakerAudio(start=0,end=10,path=f"{root}baker/",return_len=True)
 
 def collate_fn(batch):
@@ -36,7 +36,7 @@ def collate_fn(batch):
     return text_batch, audio_batch
 
 
-chinese = False
+chinese = True
 import random
 number = random.randint(0,9900)
 if chinese:

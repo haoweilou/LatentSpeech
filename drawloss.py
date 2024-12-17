@@ -26,7 +26,7 @@ plt.figure(figsize=(10, 6))
 for loss_col in loss_columns:
     plt.plot(epochs, dataframe[loss_col], label=loss_col,scaley=True)
 
-# plt.ylim(0, .1)
+plt.ylim(0, .2)
 
 
 plt.xlabel('Epoch')
