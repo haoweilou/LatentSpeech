@@ -2,7 +2,10 @@ import nltk
 from nltk.corpus import cmudict
 # Example usage
 import re
-nltk.download("cmudict")
+nltk.download("cmudict",download_dir="./")
+nltk.data.path.append("./")
+
+
 arpabet_to_ipa = {
     'AA': 'ɑ', 'AE': 'æ', 'AH': 'ʌ', 'AO': 'ɔ', 'AW': 'aʊ', 
     'AY': 'aɪ', 'B': 'b', 'CH': 'tʃ', 'D': 'd', 'DH': 'ð',
