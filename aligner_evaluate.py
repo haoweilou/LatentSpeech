@@ -8,7 +8,7 @@ from dataset import BakerAudio,BakerText,LJSpeechAudio,LJSpeechText
 from function import loadModel
 from torchaudio.transforms import MelSpectrogram
 
-root = "L:/"
+root = "C:/"
 # bakertext = BakerText(normalize=False,start=0,end=100,path=f"{root}baker/",ipa=True)
 
 
@@ -25,7 +25,7 @@ feature_dim = 16 if feature_type != "Melspec" else 80        #feature dim
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 aligner = ASR(input_dim=feature_dim,output_dim=C).to(device)
-epoch = 100
+epoch = 2000
 aligner = loadModel(aligner,f"aligner_{epoch}","./model/")
 bakeraudio = BakerAudio(start=0,end=10,path=f"{root}baker/",return_len=True)
 
@@ -36,9 +36,10 @@ def collate_fn(batch):
     return text_batch, audio_batch
 
 
-chinese = False
+chinese = True
 import random
-number = random.randint(0,9900)
+number = random.randint(1000,9900)
+# number = 1
 if chinese:
     bakertext = BakerText(start=number,end=number+10,path=f"{root}baker/",ipa=True)
     bakeraudio = BakerAudio(start=number,end=number+10,path=f"{root}baker/",return_len=True)
@@ -64,13 +65,16 @@ for i,(text_batch,audio_batch) in enumerate(loader):
         y_lens = torch.ceil(y_lens/16/64).long()
     y = melspec           #batch size, phoneme length
     x_f = aligner(y,language)  # [batch_size, seq_len, num_phonemes]   
-    print(x_f.shape)         
+    print(x_f.shape)
+
     emission = torch.log_softmax(x_f,dim=-1) # [seq_len, batch_size, num_phonemes]
     # l = duration_calculate(emission.cpu(),x.cpu(),x_lens.cpu(),y_lens.cpu(),max_x_len = x.shape[-1])
     emissions = emission.detach().cpu()
     emission = emissions[0]
+    # emission = emission[:y_lens[0],:]
     # plot(emission)
-    print(emission)
+    print(emission.shape)
+    # break
     if chinese:
         transcript = bakertext.ipa_sentences[i]
     else:
@@ -119,7 +123,6 @@ for i,(text_batch,audio_batch) in enumerate(loader):
         word_segments,
         audio[0].cpu(),
     )
-    plt.show()
     waveform = audio[0]
     if chinese: 
         sentece_englisht = bakertext.hanzi[i]
@@ -145,6 +148,8 @@ for i,(text_batch,audio_batch) in enumerate(loader):
 
     for i in range(len(word_segments)):
         display_segment(i)
+    save_audio(audio[0].detach().cpu(),48000,"full","./sample/split/")
+    plt.show()
     break
 
 # for i,sentence in enumerate(ljspeechtext.english_sentence):

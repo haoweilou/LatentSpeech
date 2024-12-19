@@ -508,7 +508,10 @@ def calculate_l(aligner,ys,y_lens,x,x_len):
         melspec = melspec.permute(0,2,1)#B,80,T
         prob_matrix = aligner(melspec)  # [batch_size, y_len, num_phonemes], probability 
         emission = torch.log_softmax(prob_matrix,dim=-1) # [seq_len, batch_size, num_phonemes]
+        # print(f"\n{i}, Emission shape: ",emission.shape,f"Y_len: {melspec.shape[1]}")
+        # print(x[i].shape,f"X_len: {x_len[i]}")
         # print(emission.shape,self.x[i].cpu().unsqueeze(0).shape)
-        l = duration_calculate(emission.cpu(),x[i].cpu().unsqueeze(0),[x_len[i]],[y_lens[i]], max_x_len = x_len[i])
+        l = duration_calculate(emission.cpu(),x[i].cpu().unsqueeze(0),[x_len[i]],[melspec.shape[1]], max_x_len = x_len[i])
+        # print(f"L len: {len(l[0])}")
         output.append(l[0].tolist())
     return output

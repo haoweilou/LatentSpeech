@@ -29,8 +29,8 @@ lr = learning_rate()
 print("Initial learnign rate: ",lr)
 print("Load Dataset: ")
 model_name = "aligner"
-# root = "/home/haoweilou/scratch/"
-root = "L:/"
+root = "/home/haoweilou/scratch/"
+# root = "L:/"
 # root = "/scratch/ey69/hl6114/"
 loss_log = pd.DataFrame({"total_loss":[],"ctc_loss":[]})
 bakertext = BakerText(normalize=False,start=0,end=5000,path=f"{root}baker/",ipa=True)
@@ -62,7 +62,8 @@ loader = DataLoader(dataset=list(zip(textdataset, audiodataset)), collate_fn=col
 
 aligner = ASR(input_dim=feature_dim,output_dim=C).to(device)
 optimizer = optim.Adam(aligner.parameters(), betas=(0.9,0.98),eps=1e-9,lr=0.001)
-CTCLoss = nn.CTCLoss(blank=0,zero_infinity=True)
+# CTCLoss = nn.CTCLoss(blank=0,zero_infinity=True)
+CTCLoss = nn.CTCLoss(blank=0)
 log = Log(ctc_loss=0)
 # log.load(f"./log/loss_{model_name}")
 #train aligner first 
@@ -90,7 +91,7 @@ for epoch in range(2001):
         optimizer.step()
         log.update(ctc_loss=loss.item())
     # break
-    print(log)
+    print(f"Epoch: {epoch}",log)
         
     if epoch % 100 == 0:
         saveModel(aligner,f"{model_name}_{epoch}","./model/")

@@ -35,8 +35,8 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 aligner = ASR(80,len(ipa_pho_dict)+1).to(device)
 aligner = loadModel(aligner,"aligner_en_600","./model/")
 
-ljspeechaudio = LJSpeechAudio(start=0,end=2000,path=f"{root}LJSpeech/",return_len=True)
-ljspeechtext = LJSpeechText(start=0,end=2000,path=f"{root}LJSpeech/")
+ljspeechaudio = LJSpeechAudio(start=0,end=1000,path=f"{root}LJSpeech/",return_len=True)
+ljspeechtext = LJSpeechText(start=0,end=1000,path=f"{root}LJSpeech/")
 # ljspeechtext.calculate_l(aligner,ys=ljspeechaudio.audios,y_lens=ljspeechaudio.audio_lens)
 
 

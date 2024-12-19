@@ -25,17 +25,17 @@ from ipa import ipa_pho_dict
 if is_ipa: config["pho_config"]["word_num"] = len(ipa_pho_dict)
 
 # root = "/home/haoweilou/scratch/"
-root = "L:/"
+root = "C:/"
 # bakertext = BakerText(normalize=False,start=0,end=500,path=f"{root}baker/",ipa=True)
 # bakeraudio = BakerAudio(start=0,end=500,path=f"{root}baker/",return_len=True)
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 aligner = ASR(80,len(ipa_pho_dict)+1).to(device)
-aligner = loadModel(aligner,"aligner_en_600","./model/")
+aligner = loadModel(aligner,"aligner_2000","./model/")
 from function import calculate_l
-# ljspeechaudio = LJSpeechAudio(start=0,end=13100,path=f"{root}LJSpeech/",return_len=True)
-# ljspeechtext = LJSpeechText(start=0,end=13100,path=f"{root}LJSpeech/")
+# ljspeechaudio = LJSpeechAudio(start=0,end=100,path=f"{root}LJSpeech/",return_len=True)
+# ljspeechtext = LJSpeechText(start=0,end=100,path=f"{root}LJSpeech/")
 # l = calculate_l(aligner,
 #                 ys=ljspeechaudio.audios,
 #                 y_lens=ljspeechaudio.audio_lens,
@@ -51,7 +51,7 @@ from function import calculate_l
 
 
 bakeraudio = BakerAudio(start=0,end=100,path=f"{root}baker/",return_len=True)
-bakertext = BakerText(start=0,end=100,path=f"{root}baker/")
+bakertext = BakerText(start=0,end=100,path=f"{root}baker/",ipa=True)
 l = calculate_l(aligner,
                 ys=bakeraudio.audios,
                 y_lens=bakeraudio.audio_lens,

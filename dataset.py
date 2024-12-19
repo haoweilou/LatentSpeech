@@ -92,8 +92,13 @@ class LJSpeechAudio(torch.utils.data.Dataset):
     def __init__(self,start=0,end=10000,path="/home/haoweilou/scratch/LJSpeech/",return_len=False):
         super(LJSpeechAudio, self).__init__()
         audio_path = path
-        audio_files = os.listdir(f"{audio_path}wavs/")
-        audio_files = [f"{audio_path}wavs/{a}" for a in audio_files][start:end]
+        with open(f"{path}metadata.csv","r",encoding="utf-8") as f: 
+            lines = f.readlines()
+        audio_names = []
+        for line in lines: 
+            audio_names.append(line.split("|")[0])
+        audio_names = audio_names[start:end]
+        audio_files = [f"{audio_path}wavs/{a}.wav" for a in audio_names]
         audios = [load_audio(f)[0][0] for f in tqdm(audio_files)]
         
         resampler = torchaudio.transforms.Resample(orig_freq=22050, new_freq=48000)
@@ -176,15 +181,16 @@ class BakerText(torch.utils.data.Dataset):
             self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
             self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in tones],batch_first=True,padding_value=0)
 
-            with open("./save/duration/baker.json","r") as f: 
-                data_str = f.read()
-                data = json.load(data_str)
-                l = []
-                for i in range(start,end):
-                    duration = data[str(i)]
-                    l.append(duration)
+            # with open("./save/duration/baker.json","r") as f: 
+            #     data_str = f.read()
+            #     data = json.load(data_str)
+            #     l = []
+            #     for i in range(start,end):
+            #         duration = data[str(i)]
+            #         l.append(duration)
                     
-            self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)
+            # self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)
+            self.l = torch.ones_like(self.x)
             self.mel_len = torch.ones_like(self.src_len)
         self.language = torch.ones_like(self.src_len)
 
@@ -242,15 +248,16 @@ class LJSpeechText(torch.utils.data.Dataset):
         self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
         # self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in stress],batch_first=True,padding_value=0)
         self.s = torch.zeros_like(self.x)
-        with open("./save/duration/LJSpeech.json","r") as f: 
-                data_str = f.read()
-                data = json.loads(data_str)
-                l = []
-                for i in range(start,end):
-                    duration = data[str(i)]
-                    l.append(duration)
+        # with open("./save/duration/LJSpeech.json","r") as f: 
+        #         data_str = f.read()
+        #         data = json.loads(data_str)
+        #         l = []
+        #         for i in range(start,end):
+        #             duration = data[str(i)]
+        #             l.append(duration)
                     
-        self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)
+        # self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)
+        self.l = torch.ones_like(self.x)
         # None
         self.mel_len = torch.ones_like(self.src_len)
         self.language = torch.ones_like(self.src_len)

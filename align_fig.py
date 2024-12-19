@@ -23,6 +23,7 @@ def get_trellis(emission, tokens, blank_id=0):
     trellis[-num_tokens + 1 :, 0] = float("inf")
 
     for t in range(num_frame - 1):
+        # print(t,tokens[1:])
         trellis[t + 1, 1:] = torch.maximum(
             # Score for staying at the same token
             trellis[t, 1:] + emission[t, blank_id],
