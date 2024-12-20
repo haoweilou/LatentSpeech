@@ -50,8 +50,8 @@ from function import calculate_l
 
 
 
-bakeraudio = BakerAudio(start=0,end=100,path=f"{root}baker/",return_len=True)
-bakertext = BakerText(start=0,end=100,path=f"{root}baker/",ipa=True)
+bakeraudio = BakerAudio(start=0,end=10000,path=f"{root}baker/",return_len=True)
+bakertext = BakerText(start=0,end=10000,path=f"{root}baker/",ipa=True)
 l = calculate_l(aligner,
                 ys=bakeraudio.audios,
                 y_lens=bakeraudio.audio_lens,

@@ -35,9 +35,9 @@ def collate_fn(batch):
     audio_batch = bakeraudio.collate(audio_batch)
     return text_batch, audio_batch
 
-
-chinese = True
+# chinese = True
 import random
+chinese = random.randint(0,1) == 1
 number = random.randint(1000,9900)
 # number = 1
 if chinese:
