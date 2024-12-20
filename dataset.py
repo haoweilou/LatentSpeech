@@ -183,7 +183,7 @@ class BakerText(torch.utils.data.Dataset):
 
             with open("./save/duration/baker.json","r") as f: 
                 data_str = f.read()
-                data = json.load(data_str)
+                data = json.loads(data_str)
                 l = []
                 for i in range(start,end):
                     duration = data[str(i)]

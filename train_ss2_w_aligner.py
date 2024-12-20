@@ -27,26 +27,26 @@ if is_ipa: config["pho_config"]["word_num"] = len(ipa_pho_dict)
 root = "/home/haoweilou/scratch/"
 # root = "L:/"
 loss_log = pd.DataFrame({"total_loss":[],"ctc_loss":[]})
-# bakertext = BakerText(normalize=False,start=0,end=500,path=f"{root}baker/",ipa=True)
-bakeraudio = BakerAudio(start=0,end=500,path=f"{root}baker/",return_len=True)
+bakertext = BakerText(normalize=False,start=0,end=2000,path=f"{root}baker/",ipa=True)
+bakeraudio = BakerAudio(start=0,end=2000,path=f"{root}baker/",return_len=True)
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 # aligner = ASR(80,len(ipa_pho_dict)+1).to(device)
 # aligner = loadModel(aligner,"aligner_en_600","./model/")
 
-ljspeechaudio = LJSpeechAudio(start=0,end=1000,path=f"{root}LJSpeech/",return_len=True)
-ljspeechtext = LJSpeechText(start=0,end=1000,path=f"{root}LJSpeech/")
+ljspeechaudio = LJSpeechAudio(start=0,end=2000,path=f"{root}LJSpeech/",return_len=True)
+ljspeechtext = LJSpeechText(start=0,end=2000,path=f"{root}LJSpeech/")
 # ljspeechtext.calculate_l(aligner,ys=ljspeechaudio.audios,y_lens=ljspeechaudio.audio_lens)
 
 
 
 from dataset import CombinedTextDataset,CombinedAudioDataset
-# textdataset = CombinedTextDataset(bakertext,ljspeechtext)
-# audiodataset = CombinedAudioDataset(bakeraudio,ljspeechaudio)
+textdataset = CombinedTextDataset(bakertext,ljspeechtext)
+audiodataset = CombinedAudioDataset(bakeraudio,ljspeechaudio)
 
-textdataset = CombinedTextDataset(ljspeechtext,ljspeechtext)
-audiodataset = CombinedAudioDataset(ljspeechaudio,ljspeechaudio)
+# textdataset = CombinedTextDataset(ljspeechtext,ljspeechtext)
+# audiodataset = CombinedAudioDataset(ljspeechaudio,ljspeechaudio)
 
 def collate_fn(batch):
     text_batch, audio_batch = zip(*batch)
