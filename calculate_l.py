@@ -34,33 +34,33 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 aligner = ASR(80,len(ipa_pho_dict)+1).to(device)
 aligner = loadModel(aligner,"aligner_2000","./model/")
 from function import calculate_l
-# ljspeechaudio = LJSpeechAudio(start=0,end=100,path=f"{root}LJSpeech/",return_len=True)
-# ljspeechtext = LJSpeechText(start=0,end=100,path=f"{root}LJSpeech/")
-# l = calculate_l(aligner,
-#                 ys=ljspeechaudio.audios,
-#                 y_lens=ljspeechaudio.audio_lens,
-#                 x=ljspeechtext.x,
-#                 x_len=ljspeechtext.src_len)
-# import json
-
-# data = {index:duration for index,duration in enumerate(l)}
-# data_str = json.dumps(data,indent=3)
-# with open("./save/duration/LJSpeech.json","w") as f: 
-#     f.write(data_str)
-
-
-
-bakeraudio = BakerAudio(start=0,end=10000,path=f"{root}baker/",return_len=True)
-bakertext = BakerText(start=0,end=10000,path=f"{root}baker/",ipa=True)
+ljspeechaudio = LJSpeechAudio(start=0,end=13100,path=f"{root}LJSpeech/",return_len=True)
+ljspeechtext = LJSpeechText(start=0,end=13100,path=f"{root}LJSpeech/")
 l = calculate_l(aligner,
-                ys=bakeraudio.audios,
-                y_lens=bakeraudio.audio_lens,
-                x=bakertext.x,
-                x_len=bakertext.src_len)
+                ys=ljspeechaudio.audios,
+                y_lens=ljspeechaudio.audio_lens,
+                x=ljspeechtext.x,
+                x_len=ljspeechtext.src_len)
 import json
 
 data = {index:duration for index,duration in enumerate(l)}
 data_str = json.dumps(data,indent=3)
-with open("./save/duration/baker.json","w") as f: 
+with open("./save/duration/LJSpeech.json","w") as f: 
     f.write(data_str)
+
+
+
+# bakeraudio = BakerAudio(start=0,end=10000,path=f"{root}baker/",return_len=True)
+# bakertext = BakerText(start=0,end=10000,path=f"{root}baker/",ipa=True)
+# l = calculate_l(aligner,
+#                 ys=bakeraudio.audios,
+#                 y_lens=bakeraudio.audio_lens,
+#                 x=bakertext.x,
+#                 x_len=bakertext.src_len)
+# import json
+
+# data = {index:duration for index,duration in enumerate(l)}
+# data_str = json.dumps(data,indent=3)
+# with open("./save/duration/baker.json","w") as f: 
+#     f.write(data_str)
 

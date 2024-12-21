@@ -41,7 +41,8 @@ config["pho_config"]["word_num"] = len(ipa_pho_dict)
 modelname = "StyleSpeech2_FF"
 model = StyleSpeech2_FF(config,embed_dim=16).to(device)
 # model = loadModel(model,f"{modelname}_100","./model/")
-model = loadModel(model,f"StyleSpeech2_FF_150_en_1k","./model/")
+# model = loadModel(model,f"StyleSpeech2_FF_150_en_1k","./model/")
+model = loadModel(model,f"StyleSpeech2_FF_250","./model/")
 
 
 import torchaudio.transforms as T
@@ -49,7 +50,7 @@ import torchaudio.transforms as T
 
 
 # from function import phone_to_phone_idx,hanzi_to_pinyin
-hanzi = "中华人民共和国今天成立了"
+hanzi = "张思逸是个小笨蛋娄皓维是个大聪明"
 from ipa import mandarin_chinese_to_ipa, ipa_to_idx
 pinyin,tone = mandarin_chinese_to_ipa(hanzi)
 print(pinyin)
@@ -76,7 +77,7 @@ print(audio_f.shape)
 save_audio(audio_f[0],48000,f"custom_cn","./sample/")
 
 
-english = "hello world how are you"
+english = "zora is stupid david is smart big big smart"
 from ipa import english_sentence_to_ipa, ipa_to_idx
 english,tone = english_sentence_to_ipa(english)
 print(english)
