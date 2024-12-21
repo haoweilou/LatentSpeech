@@ -52,7 +52,7 @@ modelname = "StyleSpeech2_FF"
 model = StyleSpeech2_FF(config,embed_dim=16).to(device)
 # model = loadModel(model,f"{modelname}_100","./model/")
 # model = loadModel(model,f"StyleSpeech2_FF_150_en_1k","./model/")
-model = loadModel(model,f"StyleSpeech2_FF_250","./model/")
+model = loadModel(model,f"StyleSpeech2_FF_350_chen_4k","./model/")
 
 
 
