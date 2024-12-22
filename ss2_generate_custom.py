@@ -42,7 +42,8 @@ modelname = "StyleSpeech2_FF"
 model = StyleSpeech2_FF(config,embed_dim=16).to(device)
 # model = loadModel(model,f"{modelname}_100","./model/")
 # model = loadModel(model,f"StyleSpeech2_FF_150_en_1k","./model/")
-model = loadModel(model,f"StyleSpeech2_FF_350_chen_4k","./model/")
+# model = loadModel(model,f"StyleSpeech2_FF_350_chen_4k","./model/")
+model = loadModel(model,f"StyleSpeech2_FF_150","./model/")
 
 
 import torchaudio.transforms as T
@@ -77,7 +78,7 @@ print(audio_f.shape)
 save_audio(audio_f[0],48000,f"custom_cn","./sample/")
 
 
-english = "thor and loki has big ass thor's dick dive into loki's asshole"
+english = "thor and lowki has big ass thor's dick dive into lowki's asshole"
 from ipa import english_sentence_to_ipa, ipa_to_idx
 english,tone = english_sentence_to_ipa(english)
 print(english)

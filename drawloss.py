@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import pandas as pd 
-dataframe = pd.read_csv("./log/loss_aligner")
+dataframe = pd.read_csv("./log/loss_StyleSpeech2_FF")
 # dataframe = pd.read_csv("./log/loss_aligner")
 # dataframe = pd.read_csv("./log/loss_StyleSpeechDiff")
 
@@ -26,7 +26,7 @@ plt.figure(figsize=(10, 6))
 for loss_col in loss_columns:
     plt.plot(epochs, dataframe[loss_col], label=loss_col,scaley=True)
 
-plt.ylim(0, .05)
+# plt.ylim(0, .05)
 
 
 plt.xlabel('Epoch')
