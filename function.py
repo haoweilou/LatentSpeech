@@ -515,3 +515,21 @@ def calculate_l(aligner,ys,y_lens,x,x_len):
         # print(f"L len: {len(l[0])}")
         output.append(l[0].tolist())
     return output
+
+
+def draw_distribution(data,outlier=False):
+    import seaborn as sns
+    # Create the box plot
+    df = pd.DataFrame(data)
+    plt.figure(figsize=(10, 6))
+    sns.boxplot(x="Phoneme", y="Duration", data=df, showfliers=outlier)
+    plt.ylim(0, 25)  # Adjust the range as needed
+
+    # Customize the plot
+    plt.title("Distribution of Phoneme Durations")
+    plt.xlabel("Phoneme")
+    plt.ylabel("Duration (seconds)")
+    plt.grid(axis="y", linestyle="--", alpha=0.7)
+
+    # Show the plot
+    plt.show()

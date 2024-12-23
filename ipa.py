@@ -211,4 +211,6 @@ all_ipa_phoneme = list(pinyin_to_ipa.values())+list(arpabet_to_ipa.values())
 all_ipa_phoneme = sorted(list(set(all_ipa_phoneme)))
 all_ipa_phoneme = ["EMPTY"] + all_ipa_phoneme+["|"]
 ipa_pho_dict = {k:i for i,k  in enumerate(all_ipa_phoneme)}
+idx_to_ipa = {i:k for i,k  in enumerate(all_ipa_phoneme)}
+
 print(ipa_pho_dict)

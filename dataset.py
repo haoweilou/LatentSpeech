@@ -248,16 +248,16 @@ class LJSpeechText(torch.utils.data.Dataset):
         self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
         # self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in stress],batch_first=True,padding_value=0)
         self.s = torch.zeros_like(self.x)
-        # with open("./save/duration/LJSpeech.json","r") as f: 
-        #         data_str = f.read()
-        #         data = json.loads(data_str)
-        #         l = []
-        #         for i in range(start,end):
-        #             duration = data[str(i)]
-        #             l.append(duration)
+        with open("./save/duration/LJSpeech.json","r") as f: 
+                data_str = f.read()
+                data = json.loads(data_str)
+                l = []
+                for i in range(start,end):
+                    duration = data[str(i)]
+                    l.append(duration)
                     
-        # self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)
-        self.l = torch.ones_like(self.x)
+        self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)
+        # self.l = torch.ones_like(self.x)
         # None
         self.mel_len = torch.ones_like(self.src_len)
         self.language = torch.ones_like(self.src_len)
