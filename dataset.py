@@ -194,7 +194,6 @@ class BakerText(torch.utils.data.Dataset):
             self.mel_len = torch.ones_like(self.src_len)
         self.language = torch.ones_like(self.src_len)
 
-
     def pho2idx(self,phonemes,pho_list:list,normalize=True):
         output = []
         for phoneme in phonemes:

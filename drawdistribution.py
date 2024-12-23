@@ -10,28 +10,53 @@ import seaborn as sns
 
 # df = pd.DataFrame(data)
 from dataset import BakerText,LJSpeechText
-from function import draw_distribution
-dataset = BakerText(path="C:/baker/",start=0,end=10000,ipa=True)
-# dataset = LJSpeechText(path="C:/LJSpeech/",start=0,end=13100)
+import torch
+from function import draw_duration_distribution
+# dataset1 = BakerText(path="C:/baker/",start=0,end=10000,ipa=True)
+# dataset2 = LJSpeechText(path="C:/LJSpeech/",start=0,end=13100)
+# xs = dataset.x.tolist()
+# ls = dataset.l.tolist()
 
-xs = dataset.x.tolist()
-ls = dataset.l.tolist()
-phonemes = []
-durations = []
-from tqdm import tqdm
-for x,l in tqdm(zip(xs,ls)):
-    for phoneme,duration in zip(x,l):
-        if phoneme == 0: 
-            assert duration == 0
-            break
-        phonemes.append(phoneme)
-        durations.append(duration)
-from ipa import idx_to_ipa
-phonemes = [idx_to_ipa[p] for p in phonemes]
-data = {
-    "Phoneme": phonemes,
-    "Duration": durations,
-}
+# xs = dataset1.x.tolist()+dataset2.x.tolist()
+# ls = dataset1.l.tolist()+dataset2.l.tolist()
 
-draw_distribution(data)
+
+# phonemes = []
+# durations = []
+# from tqdm import tqdm
+# for x,l in tqdm(zip(xs,ls)):
+#     for phoneme,duration in zip(x,l):
+#         if phoneme == 0: 
+#             assert duration == 0
+#             break
+#         phonemes.append(phoneme)
+#         durations.append(duration)
+from ipa import idx_to_ipa,ipa_pho_dict
+# phonemes = [idx_to_ipa[p] for p in phonemes]
+# for i in idx_to_ipa:
+#     if idx_to_ipa[i] not in phonemes:
+#         phonemes.append(idx_to_ipa[i])
+#         durations.append(0)
+
+# data = {
+#     "Phoneme": phonemes,
+#     "Duration": durations,
+# }
+
+# draw_duration_distribution(data,name="all")
 # print(dataset.x,dataset.l)
+from function import draw_phoneme_distribution
+dataset1 = BakerText(path="C:/baker/",start=0,end=10000,ipa=True)
+dataset2 = LJSpeechText(path="C:/LJSpeech/",start=0,end=13100)
+xs = dataset2.x.tolist()
+count = {i:0 for i in range(82)}
+for x in xs:
+    for phoneme in x: 
+        if phoneme == 0:
+            break
+        count[phoneme] += 1
+
+print(count)
+numbers = [count[i] for i in range(81)]
+data = {"Phoneme":[idx_to_ipa[i] for i in range(81)],"Count":numbers}
+draw_phoneme_distribution(data,name="ljspeech_count")

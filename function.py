@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from torch.nn.utils.rnn import pad_sequence
 from pypinyin import pinyin, Style
+import seaborn as sns
+
 def saveLog(log_record:dict,name="log",root="./save/log/"):
     log = pd.DataFrame(log_record)
     log.to_csv(f"{root}{name}")
@@ -517,12 +519,13 @@ def calculate_l(aligner,ys,y_lens,x,x_len):
     return output
 
 
-def draw_distribution(data,outlier=False):
-    import seaborn as sns
+def draw_duration_distribution(data,outlier=False,root="./fig/analysis/",name="distribution"):
+    from ipa import ipa_pho_dict
+    print(list(ipa_pho_dict.keys()))
     # Create the box plot
     df = pd.DataFrame(data)
-    plt.figure(figsize=(10, 6))
-    sns.boxplot(x="Phoneme", y="Duration", data=df, showfliers=outlier)
+    plt.figure(figsize=(30, 10))
+    sns.boxplot(x="Phoneme", y="Duration", data=df, showfliers=outlier,order=list(ipa_pho_dict.keys()))
     plt.ylim(0, 25)  # Adjust the range as needed
 
     # Customize the plot
@@ -530,6 +533,22 @@ def draw_distribution(data,outlier=False):
     plt.xlabel("Phoneme")
     plt.ylabel("Duration (seconds)")
     plt.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.savefig(f"{root}{name}", bbox_inches='tight', pad_inches=0)
 
     # Show the plot
-    plt.show()
+    # plt.show()
+
+def draw_phoneme_distribution(data,root="./fig/analysis/",name="distribution"):
+    from ipa import ipa_pho_dict
+    print(list(ipa_pho_dict.keys()))
+    # Create the box plot
+    df = pd.DataFrame(data)
+    plt.figure(figsize=(30, 10))
+    sns.barplot(x="Phoneme", y="Count", data=df)
+
+    # Customize the plot
+    plt.title("Distribution of Phoneme Durations")
+    plt.xlabel("Phoneme")
+    plt.ylabel("Duration (seconds)")
+    plt.grid(axis="y", linestyle="--", alpha=0.7)
+    plt.savefig(f"{root}{name}", bbox_inches='tight', pad_inches=0)
