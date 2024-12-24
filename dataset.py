@@ -285,7 +285,6 @@ class LJSpeechText(torch.utils.data.Dataset):
                     l.append(duration)
         if no_sil:
             ipd_idx, l = zip(*[adjust_sil_durations(d, p) for d, p in zip(ipd_idx, l)])
-            
         self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
         self.s = torch.zeros_like(self.x)
         self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)

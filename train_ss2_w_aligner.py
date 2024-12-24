@@ -18,6 +18,7 @@ from tts import StyleSpeech2_FF,FastSpeechLoss
 from tqdm import tqdm
 from model import ASR
 from tts_config import config
+from logger import Log
 
 import math
 is_ipa = True
@@ -26,8 +27,8 @@ if is_ipa: config["pho_config"]["word_num"] = len(ipa_pho_dict)
 
 root = "/home/haoweilou/scratch/"
 # root = "L:/"
-loss_log = pd.DataFrame({"total_loss":[],"ctc_loss":[]})
-bakertext = BakerText(normalize=False,start=0,end=10000,path=f"{root}baker/",ipa=True)
+no_sil = True
+bakertext = BakerText(normalize=False,start=0,end=10000,path=f"{root}baker/",ipa=True,no_sil=no_sil)
 bakeraudio = BakerAudio(start=0,end=10000,path=f"{root}baker/",return_len=True)
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
@@ -36,7 +37,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 # aligner = loadModel(aligner,"aligner_en_600","./model/")
 
 ljspeechaudio = LJSpeechAudio(start=0,end=10000,path=f"{root}LJSpeech/",return_len=True)
-ljspeechtext = LJSpeechText(start=0,end=10000,path=f"{root}LJSpeech/")
+ljspeechtext = LJSpeechText(start=0,end=10000,path=f"{root}LJSpeech/",no_sil=no_sil)
 # ljspeechtext.calculate_l(aligner,ys=ljspeechaudio.audios,y_lens=ljspeechaudio.audio_lens)
 
 
@@ -66,23 +67,26 @@ def learning_rate(d_model=256,step=1,warmup_steps=4000):
 lr = learning_rate()
 print(f"Initial LR: {lr}")
 model = StyleSpeech2_FF(config,embed_dim=16).to(device)
+if no_sil: loadModel(model,"StyleSpeech2_FF",root="./model/",strict=True)
 optimizer = optim.Adam(model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=lr)
 
 modelname = "StyleSpeech2_FF"
-loss_log = pd.DataFrame({"total_loss":[],"tts_loss":[],"duration_loss":[]})
-loss_log_name =  f"./log/loss_{modelname}"
-# model = loadModel(model, f"{modelname}_200","./model/")
+if no_sil: modelname += "_NOSIL"
 
 # aligner = ASR(80,len(phoneme_set)+1).to(device)
 
-
 fastloss = FastSpeechLoss().to(device)
 
-melspec_transform = MelSpectrogram(sample_rate=48000,n_fft=1024,hop_length=1024,n_mels=80).to(device)
+log = Log(tts_loss=0,duration_loss=0)
 
+melspec_transform = MelSpectrogram(sample_rate=48000,n_fft=1024,hop_length=1024,n_mels=80).to(device)
+if no_sil:
+    EPOCH = 201
+else: 
+    EPOCH = 501
 
 step = 1
-for epoch in range(0,501):
+for epoch in range(0,EPOCH):
     total_loss = 0
     fastLoss_ = 0
     duration_loss_ = 0
@@ -121,10 +125,10 @@ for epoch in range(0,501):
 
         new_lr = learning_rate(step=step)
         for param_group in optimizer.param_groups: param_group['lr'] = new_lr
+        log.update(tts_loss=tts_loss.item(),duration_loss=duration_loss.item())
 
     print(f"Epoch: {epoch} Duration Loss: {duration_loss_/len(loader):.03f} TTS Loss: {fastLoss_/len(loader):.03f} Total: {total_loss/len(loader):.03f}")
     if epoch % 50 == 0: 
         saveModel(model,f"{modelname}_{epoch}","./model/")
     
-    loss_log.loc[len(loss_log.index)] = [total_loss/len(loader),fastLoss_/len(loader),duration_loss_/len(loader)]
-    loss_log.to_csv(loss_log_name)
+    log.save(f"./log/loss_{modelname}")
