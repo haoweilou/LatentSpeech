@@ -131,8 +131,32 @@ class LJSpeechAudio(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.audios)
     
+def adjust_sil_durations(phonemes,durations):
+    n = len(durations)
+
+    def no_sil(x):
+        return x == 81
+
+    i = 1
+    while i < n - 1:
+        if no_sil(phonemes[i]):  # Identify silence phoneme
+            # Distribute the silence duration to adjacent phonemes
+            if durations[i - 1] >= durations[i + 1]:
+                durations[i - 1] += durations[i]
+            else:
+                durations[i + 1] += durations[i]
+
+            # Remove the silence phoneme and its duration
+            durations.pop(i)
+            phonemes.pop(i)
+            n -= 1
+        else:
+            i += 1
+    return phonemes,durations
+
+        
 class BakerText(torch.utils.data.Dataset):
-    def __init__(self,normalize=True,path="D:/baker/",start=0,end=10000,ipa=False):
+    def __init__(self,normalize=True,path="D:/baker/",start=0,end=10000,ipa=False,no_sil=False):
         super(BakerText, self).__init__()
         self.max_word_len = 512
         self.path = path
@@ -178,8 +202,6 @@ class BakerText(torch.utils.data.Dataset):
             self.max_len = max(self.src_len)
 
             ipd_idx = [[ipa_pho_dict[i] for i in row] for row in ipa_phonemes]
-            self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
-            self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in tones],batch_first=True,padding_value=0)
 
             with open("./save/duration/baker.json","r") as f: 
                 data_str = f.read()
@@ -188,8 +210,17 @@ class BakerText(torch.utils.data.Dataset):
                 for i in range(start,end):
                     duration = data[str(i)]
                     l.append(duration)
-                    
+
+            if no_sil:
+                tones = [
+                    [tone for tone, phoneme in zip(s, p) if phoneme != 81] for s, p in zip(tones, ipd_idx)
+                ]
+                ipd_idx, l = zip(*[adjust_sil_durations(d, p) for d, p in zip(ipd_idx, l)])
+
+            self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
+            self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in tones],batch_first=True,padding_value=0)
             self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)
+
             # self.l = torch.ones_like(self.x)
             self.mel_len = torch.ones_like(self.src_len)
         self.language = torch.ones_like(self.src_len)
@@ -212,7 +243,7 @@ class BakerText(torch.utils.data.Dataset):
     
 
 class LJSpeechText(torch.utils.data.Dataset):
-    def __init__(self,path="D:/LJSpeech/",start=0,end=10000):
+    def __init__(self,path="D:/LJSpeech/",start=0,end=10000,no_sil=False):
         super().__init__()
         self.max_word_len = 512
         self.path = path
@@ -244,9 +275,7 @@ class LJSpeechText(torch.utils.data.Dataset):
         self.max_len = max(self.src_len)
 
         ipd_idx = [[ipa_pho_dict[i] for i in ip_semtemce] for ip_semtemce in ipa_sentences]
-        self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
         # self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in stress],batch_first=True,padding_value=0)
-        self.s = torch.zeros_like(self.x)
         with open("./save/duration/LJSpeech.json","r") as f: 
                 data_str = f.read()
                 data = json.loads(data_str)
@@ -254,7 +283,11 @@ class LJSpeechText(torch.utils.data.Dataset):
                 for i in range(start,end):
                     duration = data[str(i)]
                     l.append(duration)
-                    
+        if no_sil:
+            ipd_idx, l = zip(*[adjust_sil_durations(d, p) for d, p in zip(ipd_idx, l)])
+            
+        self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
+        self.s = torch.zeros_like(self.x)
         self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)
         # self.l = torch.ones_like(self.x)
         # None

@@ -43,7 +43,7 @@ model = StyleSpeech2_FF(config,embed_dim=16).to(device)
 # model = loadModel(model,f"{modelname}_100","./model/")
 # model = loadModel(model,f"StyleSpeech2_FF_150_en_1k","./model/")
 # model = loadModel(model,f"StyleSpeech2_FF_350_chen_4k","./model/")
-model = loadModel(model,f"StyleSpeech2_FF_300","./model/")
+model = loadModel(model,f"StyleSpeech2_FF_400","./model/")
 
 
 import torchaudio.transforms as T
@@ -51,7 +51,7 @@ import torchaudio.transforms as T
 
 
 # from function import phone_to_phone_idx,hanzi_to_pinyin
-hanzi = "张思逸今天跟娄皓维去布里斯班玩了"
+hanzi = "娄烆是个十六岁的小男孩他在上高一"
 from ipa import mandarin_chinese_to_ipa, ipa_to_idx
 pinyin,tone = mandarin_chinese_to_ipa(hanzi)
 print(pinyin)
@@ -78,7 +78,7 @@ print(audio_f.shape)
 save_audio(audio_f[0],48000,f"custom_cn","./sample/")
 
 
-english = "hello my name is style speech two an automatic speech generation model"
+english = "thomas lou is watching television"
 from ipa import english_sentence_to_ipa, ipa_to_idx
 english,tone = english_sentence_to_ipa(english)
 print(english)
