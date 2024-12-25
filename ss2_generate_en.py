@@ -14,8 +14,8 @@ from params import params
 from tts import StyleSpeech2,StyleSpeech2_FF
 from model import ASR
 
-bakertext = LJSpeechText(start=1000,end=1001,path="C:/LJSpeech/")
-bakeraudio = LJSpeechAudio(start=1000,end=1001,path="C:/LJSpeech/",return_len=True)
+bakertext = LJSpeechText(start=900,end=901,path="C:/LJSpeech/",no_sil=True)
+bakeraudio = LJSpeechAudio(start=900,end=901,path="C:/LJSpeech/",return_len=True)
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 from ipa import ipa_pho_dict
 # aligner = ASR(80,len(ipa_pho_dict)+1).to(device)
@@ -53,7 +53,8 @@ model = StyleSpeech2_FF(config,embed_dim=16).to(device)
 # model = loadModel(model,f"{modelname}_100","./model/")
 # model = loadModel(model,f"StyleSpeech2_FF_150_en_1k","./model/")
 # model = loadModel(model,f"StyleSpeech2_FF_350_chen_4k","./model/")
-model = loadModel(model,f"StyleSpeech2_FF_400","./model/")
+# model = loadModel(model,f"StyleSpeech2_FF_500","./model/")
+model = loadModel(model,f"StyleSpeech2_FF_NOSIL_200","./model/")
 
 
 

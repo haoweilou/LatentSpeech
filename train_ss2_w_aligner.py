@@ -67,7 +67,7 @@ def learning_rate(d_model=256,step=1,warmup_steps=4000):
 lr = learning_rate()
 print(f"Initial LR: {lr}")
 model = StyleSpeech2_FF(config,embed_dim=16).to(device)
-if no_sil: loadModel(model,"StyleSpeech2_FF",root="./model/",strict=True)
+if no_sil: loadModel(model,"StyleSpeech2_FF_500",root="./model/",strict=True)
 optimizer = optim.Adam(model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=lr)
 
 modelname = "StyleSpeech2_FF"
