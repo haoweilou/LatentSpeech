@@ -13,8 +13,8 @@ from dataset import BakerText,LJSpeechText
 import torch
 from function import draw_duration_distribution
 from ipa import idx_to_ipa,ipa_pho_dict
-dataset1 = BakerText(path="C:/baker/",start=0,end=10000,ipa=True,no_sil=False,sil_duration=2)
-dataset2 = LJSpeechText(path="C:/LJSpeech/",start=0,end=13100,no_sil=False,sil_duration=2)
+dataset1 = BakerText(path="C:/baker/",start=0,end=10000,ipa=True,no_sil=False)
+dataset2 = LJSpeechText(path="C:/LJSpeech/",start=0,end=13100,no_sil=False)
 xs = dataset2.x.tolist()
 ls = dataset2.l.tolist()
 
@@ -43,7 +43,7 @@ data = {
     "Duration": durations,
 }
 
-draw_duration_distribution(data,name="ljspeech_silduration")
+draw_duration_distribution(data,name="LJSpeech")
 # print(dataset.x,dataset.l)
 # from function import draw_phoneme_distribution
 # dataset1 = BakerText(path="C:/baker/",start=0,end=10000,ipa=True,no_sil=False)

@@ -236,11 +236,13 @@ class BakerText(torch.utils.data.Dataset):
                     l.append(duration)
 
             if no_sil:
+                print("no sillllllllllllll")
                 tones = [
                     [tone for tone, phoneme in zip(s, p) if phoneme != 81] for s, p in zip(tones, ipd_idx)
                 ]
                 ipd_idx, l = zip(*[adjust_sil_durations(d, p) for d, p in zip(ipd_idx, l)])
             elif sil_duration is not None:
+                print("ssssssssssssssssss")
                 ipd_idx, l = zip(*[change_sil_durations(d, p,sil_duration) for d, p in zip(ipd_idx, l)])
 
 
