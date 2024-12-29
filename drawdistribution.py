@@ -13,13 +13,13 @@ from dataset import BakerText,LJSpeechText
 import torch
 from function import draw_duration_distribution
 from ipa import idx_to_ipa,ipa_pho_dict
-dataset1 = BakerText(path="C:/baker/",start=0,end=10000,ipa=True,no_sil=True)
-dataset2 = LJSpeechText(path="C:/LJSpeech/",start=0,end=13100,no_sil=True)
+dataset1 = BakerText(path="C:/baker/",start=0,end=10000,ipa=True,no_sil=False,sil_duration=2)
+dataset2 = LJSpeechText(path="C:/LJSpeech/",start=0,end=13100,no_sil=False,sil_duration=2)
 xs = dataset2.x.tolist()
 ls = dataset2.l.tolist()
 
-xs = dataset1.x.tolist()+dataset2.x.tolist()
-ls = dataset1.l.tolist()+dataset2.l.tolist()
+# xs = dataset1.x.tolist()+dataset2.x.tolist()
+# ls = dataset1.l.tolist()+dataset2.l.tolist()
 
 
 phonemes = []
@@ -43,20 +43,20 @@ data = {
     "Duration": durations,
 }
 
-draw_duration_distribution(data,name="ljspeech_nosil")
+draw_duration_distribution(data,name="ljspeech_silduration")
 # print(dataset.x,dataset.l)
-from function import draw_phoneme_distribution
-dataset1 = BakerText(path="C:/baker/",start=0,end=10000,ipa=True,no_sil=True)
-dataset2 = LJSpeechText(path="C:/LJSpeech/",start=0,end=13100,no_sil=True)
-xs = dataset2.x.tolist()
-count = {i:0 for i in range(82)}
-for x in xs:
-    for phoneme in x: 
-        if phoneme == 0:
-            break
-        count[phoneme] += 1
+# from function import draw_phoneme_distribution
+# dataset1 = BakerText(path="C:/baker/",start=0,end=10000,ipa=True,no_sil=False)
+# dataset2 = LJSpeechText(path="C:/LJSpeech/",start=0,end=13100,no_sil=False)
+# xs = dataset2.x.tolist()
+# count = {i:0 for i in range(82)}
+# for x in xs:
+#     for phoneme in x: 
+#         if phoneme == 0:
+#             break
+#         count[phoneme] += 1
 
-print(count)
-numbers = [count[i] for i in range(82)]
-data = {"Phoneme":[idx_to_ipa[i] for i in range(82)],"Count":numbers}
-draw_phoneme_distribution(data,name="ljspeech_count_nosil")
+# print(count)
+# numbers = [count[i] for i in range(82)]
+# data = {"Phoneme":[idx_to_ipa[i] for i in range(82)],"Count":numbers}
+# draw_phoneme_distribution(data,name="ljspeech_count_nosil")

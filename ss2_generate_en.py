@@ -54,7 +54,7 @@ model = StyleSpeech2_FF(config,embed_dim=16).to(device)
 # model = loadModel(model,f"StyleSpeech2_FF_150_en_1k","./model/")
 # model = loadModel(model,f"StyleSpeech2_FF_350_chen_4k","./model/")
 # model = loadModel(model,f"StyleSpeech2_FF_500","./model/")
-model = loadModel(model,f"StyleSpeech2_FF_NOSIL_200","./model/")
+model = loadModel(model,f"StyleSpeech2_FF_NOSIL_150","./model/")
 
 
 

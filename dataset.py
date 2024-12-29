@@ -154,9 +154,33 @@ def adjust_sil_durations(phonemes,durations):
             i += 1
     return phonemes,durations
 
+def change_sil_durations(phonemes,durations,value=2):
+    n = len(durations)
+
+    def no_sil(x):
+        return x == 81
+
+    i = 1
+    while i < n - 1:
+        if no_sil(phonemes[i]):  # Identify silence phoneme
+            excess_duration = durations[i] - value  # Calculate the excess duration to redistribute
+
+            if excess_duration > 0:
+                # Distribute the excess duration to adjacent phonemes
+                if durations[i - 1] >= durations[i + 1]:
+                    durations[i - 1] += excess_duration
+                else:
+                    durations[i + 1] += excess_duration
+
+            # Set the silence phoneme duration to 2
+            durations[i] = value
+        i += 1
+
+    return phonemes, durations
+
         
 class BakerText(torch.utils.data.Dataset):
-    def __init__(self,normalize=True,path="D:/baker/",start=0,end=10000,ipa=False,no_sil=False):
+    def __init__(self,normalize=True,path="D:/baker/",start=0,end=10000,ipa=False,no_sil=False,sil_duration=None):
         super(BakerText, self).__init__()
         self.max_word_len = 512
         self.path = path
@@ -216,6 +240,9 @@ class BakerText(torch.utils.data.Dataset):
                     [tone for tone, phoneme in zip(s, p) if phoneme != 81] for s, p in zip(tones, ipd_idx)
                 ]
                 ipd_idx, l = zip(*[adjust_sil_durations(d, p) for d, p in zip(ipd_idx, l)])
+            elif sil_duration is not None:
+                ipd_idx, l = zip(*[change_sil_durations(d, p,sil_duration) for d, p in zip(ipd_idx, l)])
+
 
             self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
             self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in tones],batch_first=True,padding_value=0)
@@ -243,7 +270,7 @@ class BakerText(torch.utils.data.Dataset):
     
 
 class LJSpeechText(torch.utils.data.Dataset):
-    def __init__(self,path="D:/LJSpeech/",start=0,end=10000,no_sil=False):
+    def __init__(self,path="D:/LJSpeech/",start=0,end=10000,no_sil=False,sil_duration=None):
         super().__init__()
         self.max_word_len = 512
         self.path = path
@@ -285,6 +312,8 @@ class LJSpeechText(torch.utils.data.Dataset):
                     l.append(duration)
         if no_sil:
             ipd_idx, l = zip(*[adjust_sil_durations(d, p) for d, p in zip(ipd_idx, l)])
+        elif sil_duration is not None:
+            ipd_idx, l = zip(*[change_sil_durations(d, p,sil_duration) for d, p in zip(ipd_idx, l)])
         self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
         self.s = torch.zeros_like(self.x)
         self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)

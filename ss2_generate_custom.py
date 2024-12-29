@@ -43,8 +43,8 @@ model = StyleSpeech2_FF(config,embed_dim=16).to(device)
 # model = loadModel(model,f"{modelname}_100","./model/")
 # model = loadModel(model,f"StyleSpeech2_FF_150_en_1k","./model/")
 # model = loadModel(model,f"StyleSpeech2_FF_350_chen_4k","./model/")
-# model = loadModel(model,f"StyleSpeech2_FF_500","./model/")
-model = loadModel(model,f"StyleSpeech2_FF_NOSIL_200","./model/")
+model = loadModel(model,f"StyleSpeech2_FF_500","./model/")
+# model = loadModel(model,f"StyleSpeech2_FF_NOSIL_200","./model/")
 
 
 import torchaudio.transforms as T
@@ -52,16 +52,18 @@ import torchaudio.transforms as T
 
 
 # from function import phone_to_phone_idx,hanzi_to_pinyin
-hanzi = "娄烆是个十六岁的小男孩他在上高中一年级"
+hanzi = "特朗普当选美国总统"
 from ipa import mandarin_chinese_to_ipa, ipa_to_idx
 pinyin,tone = mandarin_chinese_to_ipa(hanzi)
 print(pinyin)
 # # pinyin = ["la1","la2","la3","la4","la5"]
 phone_idx = ipa_to_idx(pinyin)
-tone = [tone for tone, phoneme in zip(tone, phone_idx) if phoneme != 81]
-tone = [0] + tone + [0]
-phone_idx = [p for p in phone_idx if p != 81]
-phone_idx = [81] + phone_idx+[81]
+no_sil = True
+if no_sil:
+    tone = [tone for tone, phoneme in zip(tone, phone_idx) if phoneme != 81]
+    tone = [0] + tone + [0]
+    phone_idx = [p for p in phone_idx if p != 81]
+    phone_idx = [81] + phone_idx+[81]
 
 # print(phone_idx,tone)
 print(phone_idx,tone)
@@ -86,14 +88,16 @@ print(audio_f.shape)
 save_audio(audio_f[0],48000,f"custom_cn","./sample/")
 
 
-english = "thomas lou is watching television"
+english = "donald trump is the new president"
 from ipa import english_sentence_to_ipa, ipa_to_idx
 english,tone = english_sentence_to_ipa(english)
 print(english)
 # # pinyin = ["la1","la2","la3","la4","la5"]
 phone_idx = ipa_to_idx(english)
-phone_idx.remove(81)
-phone_idx = [81] + phone_idx+[81]
+if no_sil:
+    while 81 in phone_idx:
+        phone_idx.remove(81)
+    phone_idx = [81] + phone_idx+[81]
 # print(phone_idx,tone)
 phone_mask = torch.tensor([[0 for _ in range(len(phone_idx))]]).to(device)
 phone_idx = torch.tensor([phone_idx]).to(device)  

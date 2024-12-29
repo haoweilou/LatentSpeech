@@ -27,9 +27,10 @@ if is_ipa: config["pho_config"]["word_num"] = len(ipa_pho_dict)
 
 root = "/home/haoweilou/scratch/"
 # root = "L:/"
-no_sil = True
-bakertext = BakerText(normalize=False,start=0,end=10000,path=f"{root}baker/",ipa=True,no_sil=no_sil)
+no_sil = False
+sil_duration = 2
 bakeraudio = BakerAudio(start=0,end=10000,path=f"{root}baker/",return_len=True)
+bakertext = BakerText(normalize=False,start=0,end=10000,path=f"{root}baker/",ipa=True,no_sil=no_sil,sil_duration=sil_duration)
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -37,7 +38,7 @@ device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 # aligner = loadModel(aligner,"aligner_en_600","./model/")
 
 ljspeechaudio = LJSpeechAudio(start=0,end=10000,path=f"{root}LJSpeech/",return_len=True)
-ljspeechtext = LJSpeechText(start=0,end=10000,path=f"{root}LJSpeech/",no_sil=no_sil)
+ljspeechtext = LJSpeechText(start=0,end=10000,path=f"{root}LJSpeech/",no_sil=no_sil,sil_duration=sil_duration)
 # ljspeechtext.calculate_l(aligner,ys=ljspeechaudio.audios,y_lens=ljspeechaudio.audio_lens)
 
 
@@ -67,12 +68,12 @@ def learning_rate(d_model=256,step=1,warmup_steps=4000):
 lr = learning_rate()
 print(f"Initial LR: {lr}")
 model = StyleSpeech2_FF(config,embed_dim=16).to(device)
-if no_sil: loadModel(model,"StyleSpeech2_FF_500",root="./model/",strict=True)
+if no_sil or sil_duration is not None: loadModel(model,"StyleSpeech2_FF_500",root="./model/",strict=True)
 optimizer = optim.Adam(model.parameters(), betas=(0.9,0.98),eps=1e-9,lr=lr)
 
 modelname = "StyleSpeech2_FF"
 if no_sil: modelname += "_NOSIL"
-
+if sil_duration is not None: modelname += f"_SIL_DURATION_{sil_duration}"
 # aligner = ASR(80,len(phoneme_set)+1).to(device)
 
 fastloss = FastSpeechLoss().to(device)
@@ -80,7 +81,7 @@ fastloss = FastSpeechLoss().to(device)
 log = Log(tts_loss=0,duration_loss=0)
 
 melspec_transform = MelSpectrogram(sample_rate=48000,n_fft=1024,hop_length=1024,n_mels=80).to(device)
-if no_sil:
+if no_sil or sil_duration is not None:
     EPOCH = 201
 else: 
     EPOCH = 501
