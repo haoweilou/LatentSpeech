@@ -18,7 +18,7 @@ pho_config = {
 }
 
 style_config = {
-    "word_num":5,
+    "word_num":8,
     "word_dim":word_dim,
     "padding_idx":0,
     "n_layers":4,   

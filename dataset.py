@@ -236,13 +236,11 @@ class BakerText(torch.utils.data.Dataset):
                     l.append(duration)
 
             if no_sil:
-                print("no sillllllllllllll")
                 tones = [
                     [tone for tone, phoneme in zip(s, p) if phoneme != 81] for s, p in zip(tones, ipd_idx)
                 ]
                 ipd_idx, l = zip(*[adjust_sil_durations(d, p) for d, p in zip(ipd_idx, l)])
             elif sil_duration is not None:
-                print("ssssssssssssssssss")
                 ipd_idx, l = zip(*[change_sil_durations(d, p,sil_duration) for d, p in zip(ipd_idx, l)])
 
 
@@ -317,7 +315,7 @@ class LJSpeechText(torch.utils.data.Dataset):
         elif sil_duration is not None:
             ipd_idx, l = zip(*[change_sil_durations(d, p,sil_duration) for d, p in zip(ipd_idx, l)])
         self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
-        self.s = torch.zeros_like(self.x)
+        self.s = pad_sequence([torch.tensor(s) for s in stress],batch_first=True,padding_value=0) + 5
         self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)
         # self.l = torch.ones_like(self.x)
         # None

@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import pandas as pd 
-dataframe = pd.read_csv("./log/loss_StyleSpeech2_FF")
+dataframe = pd.read_csv("./log/loss_StyleSpeech2_FF_SIL_DURATION_2")
 # dataframe = pd.read_csv("./log/loss_aligner")
 # dataframe = pd.read_csv("./log/loss_StyleSpeechDiff")
 

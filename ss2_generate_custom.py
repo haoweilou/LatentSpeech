@@ -43,8 +43,9 @@ model = StyleSpeech2_FF(config,embed_dim=16).to(device)
 # model = loadModel(model,f"{modelname}_100","./model/")
 # model = loadModel(model,f"StyleSpeech2_FF_150_en_1k","./model/")
 # model = loadModel(model,f"StyleSpeech2_FF_350_chen_4k","./model/")
-model = loadModel(model,f"StyleSpeech2_FF_500","./model/")
+# model = loadModel(model,f"StyleSpeech2_FF_500","./model/")
 # model = loadModel(model,f"StyleSpeech2_FF_NOSIL_200","./model/")
+model = loadModel(model,f"StyleSpeech2_FF_SIL_DURATION_2_200","./model/")
 
 
 import torchaudio.transforms as T
@@ -58,12 +59,12 @@ pinyin,tone = mandarin_chinese_to_ipa(hanzi)
 print(pinyin)
 # # pinyin = ["la1","la2","la3","la4","la5"]
 phone_idx = ipa_to_idx(pinyin)
-no_sil = True
+no_sil = False
 if no_sil:
     tone = [tone for tone, phoneme in zip(tone, phone_idx) if phoneme != 81]
     tone = [0] + tone + [0]
     phone_idx = [p for p in phone_idx if p != 81]
-    phone_idx = [81] + phone_idx+[81]
+    phone_idx = [81] + phone_idx + [81]
 
 # print(phone_idx,tone)
 print(phone_idx,tone)

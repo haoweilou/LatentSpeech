@@ -43,7 +43,7 @@ def pho_stress_split(phonemes):
     for pho in phonemes:
         last = pho[-1]
         if str.isnumeric(last): 
-            stress.append(last)
+            stress.append(int(last))
             phoneme.append(pho[:-1])
         else: 
             stress.append(0)
@@ -52,6 +52,8 @@ def pho_stress_split(phonemes):
 
 
 def word_to_ipa(word):
+    #vowel contain 0,1,2 to symbolize the stress
+    #0, no stress, 1 primary stress, 2 secondary stress
     global ipa_to_word
     phonemes = word_to_phoneme(word)
     phoneme, stress = pho_stress_split(phonemes)
@@ -111,10 +113,12 @@ def english_sentence_to_ipa(sentence):
 
         ipa_phonemes += word_phoneme
         ipa_phonemes.append("|")
+
+        stresses += stress
+        stresses.append(0)
         # stress.append(0)
 
         # ipa_phonemes += ipa_phoneme
-        stresses += stress
     # ipa_phonemes = [i for i in "".join(ipa_phonemes)]
     return ipa_phonemes, stresses
 
