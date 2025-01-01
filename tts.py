@@ -434,6 +434,46 @@ class SpecAdapter(nn.Module):
     def forward(self, x):
         return self.upsampler(x)
 
+
+class FastSpeech(nn.Module):
+    """Some Information about StyleSpeech"""
+    def __init__(self,config,embed_dim=64,output_channel=1):
+        super(FastSpeech, self).__init__()
+        self.max_word = config["max_seq_len"] + 1
+        self.pho_encoder = Encoder(config["pho_config"],max_word=self.max_word)
+        self.length_adaptor = LengthAdaptor(config["len_config"],word_dim=config["pho_config"]['word_dim'])
+        self.fuse_decoder = Decoder(config["fuse_config"],max_word=self.max_word)
+        self.output_channel = output_channel
+        if output_channel != 1:
+            self.channel = nn.Sequential(
+                nn.Conv2d(1,output_channel,kernel_size=(3, 1), padding=(1, 0))
+            )
+
+        self.mel_linear = nn.Sequential(
+            nn.Linear(
+                config["fuse_config"]["word_dim"],
+                embed_dim
+            ),
+            nn.LeakyReLU(.2)
+        )
+        
+
+    def forward(self, x,  src_lens,duration_target=None,mel_lens=None,max_mel_len=None):
+        batch_size, max_src_len = x.shape[0],x.shape[1]
+        src_mask = get_mask_from_lengths(src_lens,max_len=max_src_len)
+        mel_mask = get_mask_from_lengths(mel_lens, max_len=max_mel_len)
+        pho_embed = self.pho_encoder(x,src_mask)
+        
+        fused = pho_embed
+        fused,log_duration_prediction, duration_rounded, _, mel_mask = self.length_adaptor(fused,src_mask, mel_mask=mel_mask, max_len=max_mel_len, duration_target=duration_target)
+        fused,mel_mask = self.fuse_decoder(fused,mel_mask)
+        if self.output_channel != 1:
+            fused = fused.unsqueeze(1)
+            fused = self.channel(fused)
+
+        mel = self.mel_linear(fused)       
+        return mel,log_duration_prediction,mel_mask
+
 class StyleSpeech(nn.Module):
     """Some Information about StyleSpeech"""
     def __init__(self,config,embed_dim=64,output_channel=1):
@@ -448,7 +488,6 @@ class StyleSpeech(nn.Module):
             self.channel = nn.Sequential(
                 nn.Conv2d(1,output_channel,kernel_size=(3, 1), padding=(1, 0))
             )
-
 
         self.mel_linear = nn.Sequential(
             nn.Linear(

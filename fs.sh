@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -N stylespeech           
+#PBS -N fastspeech           
 #PBS -P ey69           
 #PBS -q gpuvolta               
 #PBS -l ncpus=12
@@ -25,7 +25,7 @@ source venv/bin/activate
 
 # Run the Python script
 echo "Starting Python script..."
-python3 train_ss.py
+python3 train_fs.py
 
 # Deactivate virtual environment
 deactivate
