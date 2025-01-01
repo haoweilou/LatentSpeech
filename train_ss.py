@@ -36,12 +36,9 @@ bakertext = BakerText(normalize=False,start=0,end=9000,path=f"{root}baker/",ipa=
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-# aligner = ASR(80,len(ipa_pho_dict)+1).to(device)
-# aligner = loadModel(aligner,"aligner_en_600","./model/")
 
 ljspeechaudio = LJSpeechAudio(start=0,end=9000,path=f"{root}LJSpeech/",return_len=True)
 ljspeechtext = LJSpeechText(start=0,end=9000,path=f"{root}LJSpeech/",no_sil=no_sil,sil_duration=sil_duration)
-# ljspeechtext.calculate_l(aligner,ys=ljspeechaudio.audios,y_lens=ljspeechaudio.audio_lens)
 
 from dataset import CombinedTextDataset,CombinedAudioDataset
 textdataset = CombinedTextDataset(bakertext,ljspeechtext)
@@ -97,8 +94,8 @@ for epoch in range(0,EPOCH):
         optimizer.zero_grad()
         #use aligner to predict l 
         
-        y_pred,log_l,y_mask = model(x, s, x_lens,l=l,y_lens=y_lens,max_y_len=y.shape[-1],language=language)
-
+        y_pred,log_l,y_mask = model(x, s, x_lens,duration_target=l,mel_lens=y_lens,max_mel_len=y.shape[-1])
+        y_pred = torch.transpose(y_pred,1,2)#ypred = B,T,C => B,C,T
         loss,tts_loss,duration_loss = fastloss(y,y_pred,log_l,l,y_mask)
         loss.backward()
 
