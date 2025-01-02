@@ -93,6 +93,21 @@ def split_into_words(word, word_dictionary):
         i += 1
     return result
 
+def english_to_alphabet(sentence:str):
+    sentence = sentence.lower()
+    words = sentence.split(" ")
+
+    alphabet_phonemes = ["|"]
+    stresses = [0]
+    for word in words:
+        for char in word: 
+            if not char.isalpha(): continue
+            alphabet_phonemes.append(char)
+            stresses.append(0)
+        alphabet_phonemes.append("|")
+        stresses.append(0)
+    return alphabet_phonemes, stresses
+
 
 def english_sentence_to_ipa(sentence):
     # print(sentence)
@@ -207,7 +222,21 @@ def pinyin_sentence_to_ipa(pinyin_sentence):
 def mandarin_chinese_to_ipa(sentence):
     pinyin_sentence = hanzi_to_pinyin(sentence)
     return pinyin_sentence_to_ipa(pinyin_sentence)
-    
+
+def mandarin_chinese_to_alpha(sentence):
+    pinyins = hanzi_to_pinyin(sentence)
+
+    alphabet_phonemes = ["|"]
+    tones = [0]
+    for pinyin in pinyins:
+        for char in pinyin: 
+            if not char.isalpha(): continue
+            alphabet_phonemes.append(char)
+            tones.append(0)
+        alphabet_phonemes.append("|")
+        tones.append(0)
+    return alphabet_phonemes, tones
+
 def ipa_to_idx(ipa_phonemes):
     return  [ipa_pho_dict[i] for i in ipa_phonemes]   
 
@@ -217,4 +246,9 @@ all_ipa_phoneme = ["EMPTY"] + all_ipa_phoneme+["|"]
 ipa_pho_dict = {k:i for i,k  in enumerate(all_ipa_phoneme)}
 idx_to_ipa = {i:k for i,k  in enumerate(all_ipa_phoneme)}
 
-print(ipa_pho_dict)
+import string
+alpha_list = ["EMPTY"] + [a for a in string.ascii_lowercase] + ["|"]
+alpha_pho_dict = {k:i for i,k in enumerate(alpha_list)}
+print("IPA Phoneme Dict:",ipa_pho_dict)
+print("Alpha Phoneme Dict:",alpha_pho_dict)
+
