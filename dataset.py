@@ -180,28 +180,46 @@ def change_sil_durations(phonemes,durations,value=2):
 
         
 class BakerText(torch.utils.data.Dataset):
-    def __init__(self,normalize=True,path="D:/baker/",start=0,end=10000,ipa=False,no_sil=False,sil_duration=None):
+    def __init__(self,normalize=True,path="D:/baker/",start=0,end=10000,ipa=False,no_sil=False,sil_duration=None,alphabet=False):
         super(BakerText, self).__init__()
         self.max_word_len = 512
         self.path = path
-        if not ipa:
-            self.pho_dict = json.loads(open("./save/cache/phoneme.json","r").read())["phoneme"]
-            self.phonemes = json.loads(open("./save/cache/baker_hidden.json","r").read())
-
-            self.keys = list(self.phonemes.keys())[start:end]
-            x_raw = [self.phonemes[k]["phoneme"] for k in self.keys]
-            s_raw = [self.phonemes[k]["tone_list"] for k in self.keys]
-            self.src_len = torch.tensor([len(self.phonemes[k]["phoneme"]) for k in self.keys])
-            self.mel_len = torch.tensor([self.phonemes[k]["mel_size"] for k in self.keys])
-            self.num_sentence = end - start
+        if alphabet:
+            from ipa import alpha_pho_dict,mandarin_chinese_to_alpha
+            self.pho_dict = alpha_pho_dict
+            with open(f"{path}ProsodyLabeling/000001-010000.txt","r",encoding="utf-8") as f: 
+                lines = f.readlines()
+            hanzis = []
+            for i in range(start,end):
+                sentence = ''.join(re.findall(r'[\u4e00-\u9fff]', lines[i*2]))
+                hanzis.append(sentence)
             
-            self.x = pad_sequence(self.pho2idx(x_raw,self.pho_dict,normalize=normalize),batch_first=True,padding_value=0)
-            self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in s_raw],batch_first=True,padding_value=0)
-            # self.l = pad_sequence([torch.tensor(self.phonemes[k]["mel_len"]) for k in self.keys],batch_first=True,padding_value=0)
-           
+            alpha_phonemes = []
+            src_lens = []
+            self.hanzi = hanzis
 
-            # self.l = pad_sequence([torch.ceil(torch.tensor(self.phonemes[k]["pho_len"])/4800/0.02) for k in self.keys],batch_first=True,padding_value=0)
-        else: 
+            for hanzi in self.hanzi:
+                transcript,_ = mandarin_chinese_to_alpha(hanzi)  
+                while "|" in transcript: transcript.remove("|")
+                alpha_phonemes.append(transcript)
+                src_lens.append(len(transcript))
+            self.max_len = max(src_lens)
+            self.src_len = torch.tensor(src_lens)
+            alpha_idx = [[alpha_pho_dict[i] for i in row] for row in alpha_phonemes]
+            with open("./save/duration/Baker_ALPHA.json","r") as f: 
+                data_str = f.read()
+                data = json.loads(data_str)
+                l = []
+                for i in range(start,end):
+                    duration = data[str(i)]
+                    l.append(duration)
+
+            self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in alpha_idx],batch_first=True,padding_value=0)
+            self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)
+
+            self.s = torch.zeros_like(self.x).long()
+            self.mel_len = torch.ones_like(self.src_len)
+        elif ipa: 
             from ipa import ipa_pho_dict
             self.pho_dict = ipa_pho_dict
             with open(f"{path}ProsodyLabeling/000001-010000.txt","r",encoding="utf-8") as f: 
@@ -250,6 +268,23 @@ class BakerText(torch.utils.data.Dataset):
 
             # self.l = torch.ones_like(self.x)
             self.mel_len = torch.ones_like(self.src_len)
+        else: 
+            self.pho_dict = json.loads(open("./save/cache/phoneme.json","r").read())["phoneme"]
+            self.phonemes = json.loads(open("./save/cache/baker_hidden.json","r").read())
+
+            self.keys = list(self.phonemes.keys())[start:end]
+            x_raw = [self.phonemes[k]["phoneme"] for k in self.keys]
+            s_raw = [self.phonemes[k]["tone_list"] for k in self.keys]
+            self.src_len = torch.tensor([len(self.phonemes[k]["phoneme"]) for k in self.keys])
+            self.mel_len = torch.tensor([self.phonemes[k]["mel_size"] for k in self.keys])
+            self.num_sentence = end - start
+            
+            self.x = pad_sequence(self.pho2idx(x_raw,self.pho_dict,normalize=normalize),batch_first=True,padding_value=0)
+            self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in s_raw],batch_first=True,padding_value=0)
+            # self.l = pad_sequence([torch.tensor(self.phonemes[k]["mel_len"]) for k in self.keys],batch_first=True,padding_value=0)
+           
+
+            # self.l = pad_sequence([torch.ceil(torch.tensor(self.phonemes[k]["pho_len"])/4800/0.02) for k in self.keys],batch_first=True,padding_value=0)
         self.language = torch.ones_like(self.src_len)
 
     def pho2idx(self,phonemes,pho_list:list,normalize=True):

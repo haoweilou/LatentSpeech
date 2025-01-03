@@ -283,12 +283,16 @@
 # print(text_dataset.x.shape,text_dataset.s.shape)
 # print(text_dataset.s[0])
 
-from ipa import english_to_alphabet,mandarin_chinese_to_alpha
+# from ipa import english_to_alphabet,mandarin_chinese_to_alpha
 
 # sentence = "Hello world how are you"
 # phoneme,stress = english_to_alphabet(sentence)
 # print(phoneme,stress)
 
-sentence = "老师你好"
-phoneme,stress = mandarin_chinese_to_alpha(sentence)
-print(phoneme,stress)
+# sentence = "老师你好"
+# phoneme,stress = mandarin_chinese_to_alpha(sentence)
+# print(phoneme,stress)
+
+from dataset import BakerText
+dataset = BakerText(start=0,end=100,alphabet=True,path="L:/baker/")
+print(dataset[0])
