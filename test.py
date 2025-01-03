@@ -285,9 +285,9 @@
 
 from ipa import english_to_alphabet,mandarin_chinese_to_alpha
 
-sentence = "Hello world how are you"
-phoneme,stress = english_to_alphabet(sentence)
-print(phoneme,stress)
+# sentence = "Hello world how are you"
+# phoneme,stress = english_to_alphabet(sentence)
+# print(phoneme,stress)
 
 sentence = "老师你好"
 phoneme,stress = mandarin_chinese_to_alpha(sentence)

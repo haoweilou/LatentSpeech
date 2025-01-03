@@ -39,7 +39,7 @@ aligner = bundle.get_aligner()
 data_dict = bundle.get_dict()
 print(bundle.get_dict())
 # root = "/home/haoweilou/scratch/"
-root = "D:/"
+root = "L:/"
 # bakertext = BakerText(normalize=False,start=0,end=500,path=f"{root}baker/",ipa=True)
 # bakeraudio = BakerAudio(start=0,end=500,path=f"{root}baker/",return_len=True)
 def align(emission, tokens):
@@ -52,39 +52,82 @@ def align(emission, tokens):
 
 LABELS = {data_dict[k]:k for k in data_dict }
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
-
-ljspeechaudio = LJSpeechAudio(start=0,end=100,path=f"{root}LJSpeech/",return_len=True)
-ljspeechtext = LJSpeechText(start=0,end=100,path=f"{root}LJSpeech/")
-resampler = torchaudio.transforms.Resample(orig_freq=48000, new_freq=16000)
 def compute_alignments(waveform: torch.Tensor, transcript):
     with torch.inference_mode():
         emission, _ = model(waveform.to(device))
         token_spans = aligner(emission[0], tokenizer(transcript))
     return emission, token_spans
+resampler = torchaudio.transforms.Resample(orig_freq=48000, new_freq=16000)
+
+# ljspeechaudio = LJSpeechAudio(start=0,end=13100,path=f"{root}LJSpeech/",return_len=True)
+# ljspeechtext = LJSpeechText(start=0,end=13100,path=f"{root}LJSpeech/")
+
+
+# durations = []
+# for i in tqdm(range(len(ljspeechaudio.audios))):
+
+#     audio = ljspeechaudio.audios[i]
+#     waveform = resampler(audio).unsqueeze(0)
+#     #tomorrow conver the duration to time, 1 = 0.02 s and segment to see if the segmentation is accurate
+#     transcript = ljspeechtext.english_sentence[i].lower().split()
+#     tokenized_transcript = [data_dict[j] for j in ljspeechtext.english_sentence[i] if j != " "  ]
+
+#     emission, token_spans = compute_alignments(waveform, transcript)
+#     aligned_tokens, alignment_scores = align(emission[0][:,:waveform.shape[-1]].unsqueeze(0), tokenized_transcript)
+#     duration = duration_calculate(emission.cpu(),torch.tensor(tokenized_transcript).unsqueeze(0),[len(tokenized_transcript)],[waveform.shape[-1]], max_x_len =len(tokenized_transcript))
+#     duration = duration[0].tolist() # this is the 0.02s interval, need adjust to 1/47=0.022s
+#     timestep = 0
+#     new_duration = []
+#     for index,d in enumerate(duration):
+#         start_time = timestep*0.02
+#         end_time = (timestep+duration[index])*0.02
+#         diff = end_time-start_time
+#         diff_int = math.ceil(diff*47)
+#         new_duration.append(diff_int)
+
+#     durations.append(new_duration)
+# import json
+
+# data = {index:duration for index,duration in enumerate(durations)}
+# data_str = json.dumps(data,indent=3)
+# with open("./save/duration/LJSpeech_ALPHA.json","w") as f: 
+#     f.write(data_str)
+
+bakeraudio = BakerAudio(start=0,end=10000,path="L:/baker/")
+bakertext = BakerText(start=0,end=10000,path="L:/baker/",ipa=True)
+from ipa import mandarin_chinese_to_alpha
+hanzi = bakertext.hanzi
+
 durations = []
-for i in tqdm(range(len(ljspeechaudio.audios))):
-    audio = ljspeechaudio.audios[i]
+for i in tqdm(range(len(bakeraudio.audios))):
+    audio = bakeraudio.audios[i]
     waveform = resampler(audio).unsqueeze(0)
     #tomorrow conver the duration to time, 1 = 0.02 s and segment to see if the segmentation is accurate
-    transcript = ljspeechtext.english_sentence[i].split()
-    tokenized_transcript = [data_dict[j] for j in ljspeechtext.english_sentence[i] if j != " "  ]
+    transcript = bakertext.hanzi[i]
+    transcript,_ = mandarin_chinese_to_alpha(transcript)  
+    while "|" in transcript: transcript.remove("|")
+    tokenized_transcript = [data_dict[j] for j in transcript if j != " "  ]
 
     emission, token_spans = compute_alignments(waveform, transcript)
     aligned_tokens, alignment_scores = align(emission[0][:,:waveform.shape[-1]].unsqueeze(0), tokenized_transcript)
     duration = duration_calculate(emission.cpu(),torch.tensor(tokenized_transcript).unsqueeze(0),[len(tokenized_transcript)],[waveform.shape[-1]], max_x_len =len(tokenized_transcript))
-    durations.append(duration[0].tolist())
+    duration = duration[0].tolist() # this is the 0.02s interval, need adjust to 1/47=0.022s
+    timestep = 0
+    new_duration = []
+    for index,d in enumerate(duration):
+        start_time = timestep*0.02
+        end_time = (timestep+duration[index])*0.02
+        diff = end_time-start_time
+        diff_int = math.ceil(diff*47)
+        new_duration.append(diff_int)
 
-
-    break
+    durations.append(new_duration)
 import json
 
 data = {index:duration for index,duration in enumerate(durations)}
 data_str = json.dumps(data,indent=3)
-with open("./save/duration/LJSpeech_ALPHA.json","w") as f: 
+with open("./save/duration/Baker_ALPHA.json","w") as f: 
     f.write(data_str)
-
-
-
 # bakeraudio = BakerAudio(start=0,end=10000,path=f"{root}baker/",return_len=True)
 # bakertext = BakerText(start=0,end=10000,path=f"{root}baker/",ipa=True)
 # l = calculate_l(aligner,
