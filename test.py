@@ -293,6 +293,8 @@
 # phoneme,stress = mandarin_chinese_to_alpha(sentence)
 # print(phoneme,stress)
 
-from dataset import BakerText
+from dataset import BakerText,LJSpeechText
 dataset = BakerText(start=0,end=100,alphabet=True,path="L:/baker/")
+print(dataset[0])
+dataset = LJSpeechText(start=0,end=100,alphabet=True,path="L:/LJSpeech/")
 print(dataset[0])

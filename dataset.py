@@ -216,9 +216,9 @@ class BakerText(torch.utils.data.Dataset):
 
             self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in alpha_idx],batch_first=True,padding_value=0)
             self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)
+            self.mel_len = torch.sum(self.l,dim=1)
 
             self.s = torch.zeros_like(self.x).long()
-            self.mel_len = torch.ones_like(self.src_len)
         elif ipa: 
             from ipa import ipa_pho_dict
             self.pho_dict = ipa_pho_dict
@@ -303,9 +303,9 @@ class BakerText(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.x)
     
-
+from ipa import alpha_pho_dict
 class LJSpeechText(torch.utils.data.Dataset):
-    def __init__(self,path="D:/LJSpeech/",start=0,end=10000,no_sil=False,sil_duration=None):
+    def __init__(self,path="D:/LJSpeech/",start=0,end=10000,no_sil=False,sil_duration=None,alphabet=False):
         super().__init__()
         self.max_word_len = 512
         self.path = path
@@ -322,40 +322,69 @@ class LJSpeechText(torch.utils.data.Dataset):
             sentence = ''.join(re.sub(r'[^a-zA-Z\s]', '', text[i].lower()))
             english_sentence.append(sentence.strip())
 
-
         self.english_sentence = english_sentence
+        if alphabet: 
+            alpha_sentences = []
+            stress = []
+            src_lens = []
+            for sentence in english_sentence:
+                alpha = [char for char in sentence if char != " "]
+                s = [0 for char in sentence if char != " "]
+                alpha_sentences.append(alpha)
+                stress.append(s)
+                src_lens.append(len(alpha))
+            self.alpha_sentences = alpha_sentences
+            self.src_len = torch.tensor(src_lens)
+            self.max_len = max(self.src_len)
 
-        ipa_sentences, stress = [],[] 
-        src_lens = []
-        for sentence in english_sentence:
-            ip_semtemce,t = english_sentence_to_ipa(sentence)
-            ipa_sentences.append(ip_semtemce)
-            stress.append(t)
-            src_lens.append(len(ip_semtemce))
-        self.ipa_sentences = ipa_sentences
-        self.src_len = torch.tensor(src_lens)
-        self.max_len = max(self.src_len)
 
-        ipd_idx = [[ipa_pho_dict[i] for i in ip_semtemce] for ip_semtemce in ipa_sentences]
-        # self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in stress],batch_first=True,padding_value=0)
-        with open("./save/duration/LJSpeech.json","r") as f: 
-                data_str = f.read()
-                data = json.loads(data_str)
-                l = []
-                for i in range(start,end):
-                    duration = data[str(i)]
-                    l.append(duration)
-        if no_sil:
-            ipd_idx, l = zip(*[adjust_sil_durations(d, p) for d, p in zip(ipd_idx, l)])
-        elif sil_duration is not None:
-            ipd_idx, l = zip(*[change_sil_durations(d, p,sil_duration) for d, p in zip(ipd_idx, l)])
-        self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in ipd_idx],batch_first=True,padding_value=0)
+            token_idx = [[alpha_pho_dict[i] for i in alpha_sentence] for alpha_sentence in alpha_sentences]
+            with open("./save/duration/LJSpeech_ALPHA.json","r") as f: 
+                    data_str = f.read()
+                    data = json.loads(data_str)
+                    l = []
+                    for i in range(start,end):
+                        duration = data[str(i)]
+                        l.append(duration)
+
+        else: 
+            #ipa 
+            ipa_sentences, stress = [],[] 
+            src_lens = []
+            for sentence in english_sentence:
+                ip_semtemce,t = english_sentence_to_ipa(sentence)
+                ipa_sentences.append(ip_semtemce)
+                stress.append(t)
+                src_lens.append(len(ip_semtemce))
+            self.ipa_sentences = ipa_sentences
+            self.src_len = torch.tensor(src_lens)
+            self.max_len = max(self.src_len)
+
+            token_idx = [[ipa_pho_dict[i] for i in ip_semtemce] for ip_semtemce in ipa_sentences]
+            # self.s = pad_sequence([torch.tensor([int(i) for i in s]) for s in stress],batch_first=True,padding_value=0)
+            with open("./save/duration/LJSpeech.json","r") as f: 
+                    data_str = f.read()
+                    data = json.loads(data_str)
+                    l = []
+                    for i in range(start,end):
+                        duration = data[str(i)]
+                        l.append(duration)
+            if no_sil:
+                token_idx, l = zip(*[adjust_sil_durations(d, p) for d, p in zip(token_idx, l)])
+            elif sil_duration is not None:
+                token_idx, l = zip(*[change_sil_durations(d, p,sil_duration) for d, p in zip(token_idx, l)])
+
+            self.mel_len = torch.ones_like(self.src_len)
+        
+        self.x = pad_sequence([torch.tensor([int(i) for i in x]) for x in token_idx],batch_first=True,padding_value=0)
         self.s = pad_sequence([torch.tensor(s) for s in stress],batch_first=True,padding_value=0) + 5
+        if alphabet: 
+            self.s = self.s - 5
         self.l = pad_sequence([torch.tensor(d) for d in l],batch_first=True,padding_value=0)
         # self.l = torch.ones_like(self.x)
+        if alphabet: self.mel_len = torch.sum(self.l,dim=1)
         # None
-        self.mel_len = torch.ones_like(self.src_len)
-        self.language = torch.ones_like(self.src_len)
+        self.language = torch.zeros_like(self.src_len)
 
         
 
@@ -393,7 +422,8 @@ class CombinedTextDataset(torch.utils.data.Dataset):
         self.s = pad_sequence(list(text_dataset1.s)+list(text_dataset2.s),batch_first=True)
         self.l = pad_sequence(list(text_dataset1.l)+list(text_dataset2.l),batch_first=True)
         self.src_len = torch.concat([text_dataset1.src_len,text_dataset2.src_len],dim=0)
-        self.mel_len = torch.ones_like(self.src_len)
+        self.mel_len = torch.concat([text_dataset1.mel_len,text_dataset2.mel_len],dim=0) 
+        # torch.ones_like(self.src_len)
         self.language = torch.cat([torch.zeros((len(text_dataset1),self.x.shape[-1])),torch.ones((len(text_dataset2),self.x.shape[-1]))],dim=0).long()
 
     
